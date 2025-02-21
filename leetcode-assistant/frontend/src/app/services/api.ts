@@ -34,31 +34,71 @@ export interface ValidationResponse {
 }
 
 export const api = {
-  chat: async (data: ChatRequest, onMessage: (message: string) => void) => {
+  async chat(
+    params: { message: string; code: string; problem_id: number },
+    onChunk: (chunk: string) => void
+  ) {
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(params)
     });
 
     if (!response.ok) {
-      throw new Error('Network response was not ok');
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error('Failed to get reader from response body');
+      throw new Error('No reader available');
     }
 
     const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        
+        // Keep the last partial line in the buffer
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+          
+          try {
+            const chunk = JSON.parse(trimmedLine);
+            if (chunk.content === '[DONE]') {
+              return;
+            }
+            onChunk(chunk.content);
+          } catch (e) {
+            console.error('Error parsing chunk:', trimmedLine);
+          }
+        }
+      }
       
-      const message = decoder.decode(value);
-      onMessage(message);
+      // Handle any remaining data in the buffer
+      if (buffer) {
+        try {
+          const chunk = JSON.parse(buffer);
+          if (chunk.content !== '[DONE]') {
+            onChunk(chunk.content);
+          }
+        } catch (e) {
+          console.error('Error parsing final chunk:', buffer);
+        }
+      }
+    } finally {
+      reader.releaseLock();
     }
   },
 
