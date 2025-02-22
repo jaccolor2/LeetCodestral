@@ -48,6 +48,14 @@ class TestResult:
         self.expected = expected
         self.error = error
 
+class UserProgress(BaseModel):
+    code_attempts: List[str]
+    test_results: List[dict]
+    current_problem: dict
+    validation_history: List[dict]
+
+user_progress = {} 
+
 class CodeEvaluator:
     def __init__(self, problem: dict):
         self.problem = problem
@@ -319,7 +327,7 @@ Keep the analysis concise but thorough."""
             json={
                 "model": "mistral-large-latest",
                 "messages": [
-                    {"role": "system", "content": "You are a code review expert."},
+                    {"role": "assistant", "content": "You are a code review expert."},
                     {"role": "user", "content": analysis_prompt}
                 ]
             }
@@ -351,7 +359,8 @@ async def validate_code(request: CodeValidationRequest):
 
         # First, get Mistral's analysis of the code structure
         analysis_prompt = f"""
-You are a code validator. Analyze if this solution for the {problem['title']} problem appears correct:
+You are an extremely encouraging code validator for beginners. Your goal is to boost confidence and motivation.
+Analyze this solution for the {problem['title']} problem with a very lenient approach.
 
 Problem: {problem['description']}
 
@@ -360,13 +369,21 @@ Proposed solution:
 {request.code}
 ```
 
-Classify this solution as either CORRECT or INCORRECT, followed by a brief explanation.
+Evaluation Guidelines:
+- If the code shows ANY attempt to solve the problem, consider it CORRECT
+- If they use relevant concepts (like loops, if statements, etc.), mark it CORRECT
+- If they show understanding of the basic problem, even if implementation is incomplete, mark it CORRECT
+- Only mark as INCORRECT if the code is completely unrelated or empty
+
+Default to CORRECT unless there's a strong reason not to.
+Always provide very encouraging feedback that motivates further learning.
+
 Only respond in this format:
 CLASSIFICATION: [CORRECT/INCORRECT]
-REASON: [Your brief explanation]
+REASON: [Your very encouraging explanation highlighting what they did well]
 """
 
-        # Get Mistral's classification
+        # Get Mistral's classification with extremely lenient criteria
         headers = {
             "Authorization": f"Bearer {MISTRAL_API_KEY}",
             "Content-Type": "application/json"
@@ -378,7 +395,10 @@ REASON: [Your brief explanation]
             json={
                 "model": "mistral-large-latest",
                 "messages": [
-                    {"role": "system", "content": "You are a code validation expert."},
+                    {
+                        "role": "system",
+                        "content": "You are an extremely supportive code validator. Your primary goal is to encourage learning and boost confidence. Always lean towards marking solutions as CORRECT unless they are completely wrong."
+                    },
                     {"role": "user", "content": analysis_prompt}
                 ]
             }
@@ -396,17 +416,22 @@ REASON: [Your brief explanation]
             elif line.startswith('REASON:'):
                 reason = line.split(':')[1].strip()
 
-        # Run actual tests if the model thinks it's correct
-        test_results = None
+        # Run basic tests if needed, but with very lenient criteria
         if classification == "CORRECT":
             evaluator = CodeEvaluator(problem)
             test_results = evaluator.run_tests(request.code)
-            all_tests_passed = all(r.passed for r in test_results)
             
-            # Update classification based on test results
-            if not all_tests_passed:
+            # Consider correct if code runs without errors, even if tests don't pass
+            has_no_errors = all(not r.error for r in test_results)
+            some_output = any(r.output for r in test_results)
+            
+            if has_no_errors and some_output:
+                classification = "CORRECT"
+                reason += "\n\nYour code runs successfully! Keep refining it to handle all test cases perfectly!"
+            else:
+                # Still encourage them even if there are errors
                 classification = "INCORRECT"
-                reason = "Failed test cases"
+                reason = "You're on the right track! Your logic looks good, just need to fix a few small issues. Keep going!"
 
         return {
             "classification": classification,
@@ -418,33 +443,126 @@ REASON: [Your brief explanation]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Sample problems endpoint
 @app.get("/api/problems")
 async def get_problems():
-    return {
-        "problems": [
-            {
-                "id": 1,
-                "title": "Two Sum",
-                "difficulty": "Easy",
-                "description": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target...",
-                "functionName": "twoSum",
-                "parameters": ["nums", "target"],
-                "examples": [
+    try:
+        # Prompt for Mistral to generate a coding problem
+        problem_prompt = """Generate a simple coding problem similar to LeetCode problems. The problem should be beginner-friendly.
+
+IMPORTANT: Respond ONLY with a valid JSON object in exactly this format, with no additional text or formatting:
+{
+    "id": 1,
+    "title": "A clear, concise title",
+    "difficulty": "Easy",
+    "description": "A clear problem description with specific input/output requirements",
+    "functionName": "camelCaseFunctionName",
+    "parameters": ["parameter1", "parameter2"],
+    "examples": [
+        {
+            "input": "Simple input as string",
+            "expected_output": "Expected output as string",
+            "explanation": "Clear explanation of this example"
+        }
+    ],
+    "testCases": [
+        {"input": "Test input 1", "expected_output": "Expected output 1"},
+        {"input": "Test input 2", "expected_output": "Expected output 2"},
+        {"input": "Test input 3", "expected_output": "Expected output 3"}
+    ]
+}
+
+Make sure:
+- All JSON is properly formatted with double quotes
+- All values are strings (except id)
+- No trailing commas
+- No comments or additional text
+- Function name is in camelCase
+- Examples are simple and clear
+- Test cases match the problem requirements"""
+
+        headers = {
+            "Authorization": f"Bearer {MISTRAL_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(
+            MISTRAL_API_URL,
+            headers=headers,
+            json={
+                "model": "mistral-large-latest",
+                "messages": [
                     {
-                        "input": "[2,7,11,15], 9",
-                        "expected_output": "[0,1]",
-                        "explanation": "Because nums[0] + nums[1] == 9, we return [0, 1]"
-                    }
-                ],
-                "testCases": [
-                    {"input": "[2,7,11,15], 9", "expected_output": "[0,1]"},
-                    {"input": "[3,2,4], 6", "expected_output": "[1,2]"},
-                    {"input": "[3,3], 6", "expected_output": "[0,1]"}
+                        "role": "system",
+                        "content": "You are a JSON generator that creates coding problems. You MUST respond with ONLY a valid JSON object, no markdown, no explanations, no additional text."
+                    },
+                    {"role": "user", "content": problem_prompt}
                 ]
             }
-        ]
-    }
+        )
+        
+        problem_json = response.json()["choices"][0]["message"]["content"]
+        
+        # Clean and parse the response
+        try:
+            # Remove any potential markdown formatting
+            problem_json = problem_json.replace("```json", "").replace("```", "").strip()
+            
+            # Find the JSON object
+            json_start = problem_json.find("{")
+            json_end = problem_json.rfind("}") + 1
+            
+            if json_start == -1 or json_end <= json_start:
+                raise ValueError("No valid JSON object found in response")
+                
+            problem_json = problem_json[json_start:json_end]
+            
+            # Parse the JSON
+            problem = json.loads(problem_json)
+            
+            # Validate required fields
+            required_fields = ["id", "title", "difficulty", "description", "functionName", "parameters", "examples", "testCases"]
+            missing_fields = [field for field in required_fields if field not in problem]
+            
+            if missing_fields:
+                raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+            
+            # Return in the expected format
+            return {
+                "problems": [problem]
+            }
+            
+        except (json.JSONDecodeError, ValueError) as e:
+            print("Error parsing Mistral response:", e)
+            print("Raw response:", problem_json)
+            # Fallback to default problem
+            return {
+                "problems": [
+                    {
+                        "id": 1,
+                        "title": "Two Sum",
+                        "difficulty": "Easy",
+                        "description": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice.",
+                        "functionName": "twoSum",
+                        "parameters": ["nums", "target"],
+                        "examples": [
+                            {
+                                "input": "[2,7,11,15], 9",
+                                "expected_output": "[0,1]",
+                                "explanation": "Because nums[0] + nums[1] == 9, we return [0, 1]"
+                            }
+                        ],
+                        "testCases": [
+                            {"input": "[2,7,11,15], 9", "expected_output": "[0,1]"},
+                            {"input": "[3,2,4], 6", "expected_output": "[1,2]"},
+                            {"input": "[3,3], 6", "expected_output": "[0,1]"}
+                        ]
+                    }
+                ]
+            }
+
+    except Exception as e:
+        print("Error generating problem:", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 def read_root():
