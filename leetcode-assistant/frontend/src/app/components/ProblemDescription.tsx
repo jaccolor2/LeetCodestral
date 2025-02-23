@@ -1,15 +1,13 @@
+import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, Key } from 'react';
+import { TestCaseBox } from './TestCaseBox';
+
 interface ProblemDescriptionProps {
-  problem: {
-    id: number;
-    title: string;
-    difficulty: string;
-    description: string;
-    examples: { input: string; output: string; explanation?: string }[];
-    constraints?: string[];
-  };
+  problem: any;
+  code: string;
+  onRunTests: () => Promise<any>;
 }
 
-export function ProblemDescription({ problem }: ProblemDescriptionProps) {
+export function ProblemDescription({ problem, code, onRunTests }: ProblemDescriptionProps) {
   const difficultyColor = {
     Easy: 'bg-green-500',
     Medium: 'bg-yellow-500',
@@ -32,14 +30,14 @@ export function ProblemDescription({ problem }: ProblemDescriptionProps) {
           <div className="mt-6">
             <h3 className="font-semibold mb-2">Constraints</h3>
             <ul className="list-disc pl-5">
-              {problem.constraints.map((constraint, index) => (
+              {problem.constraints.map((constraint: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
                 <li key={index}>{constraint}</li>
               ))}
             </ul>
           </div>
         )}
 
-        {problem.examples.map((example, index) => (
+        {problem.examples.map((example: { input: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; output: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; explanation: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }, index: number) => (
           <div key={index} className="mt-6 p-4 bg-gray-700 rounded-lg">
             <h3 className="font-semibold mb-2">Example {index + 1}</h3>
             <div className="space-y-2">
@@ -61,6 +59,12 @@ export function ProblemDescription({ problem }: ProblemDescriptionProps) {
           </div>
         ))}
       </div>
+      
+      <TestCaseBox 
+        problemId={problem.id}
+        code={code}
+        onRunTests={onRunTests}
+      />
     </div>
   );
 } 

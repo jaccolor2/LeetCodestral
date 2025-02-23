@@ -7,6 +7,7 @@ interface MainLayoutProps {
   rightPanel: React.ReactNode;
   isLeftPanelVisible: boolean;
   onToggleLeftPanel: () => void;
+  children?: React.ReactNode;
 }
 
 export function MainLayout({

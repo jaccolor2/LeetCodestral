@@ -12,6 +12,8 @@ import tempfile
 import ast
 import inspect
 import time
+from io import StringIO
+import sys
 
 load_dotenv()
 
@@ -48,106 +50,19 @@ class TestResult:
         self.expected = expected
         self.error = error
 
-class UserProgress(BaseModel):
-    code_attempts: List[str]
-    test_results: List[dict]
-    current_problem: dict
-    validation_history: List[dict]
 
-user_progress = {} 
 
-class CodeEvaluator:
-    def __init__(self, problem: dict):
-        self.problem = problem
-        self.function_name = problem['functionName']
-        
-    def prepare_test_code(self, user_code: str, test_case: dict) -> str:
-        # Wrap the user's code with our test harness
-        test_wrapper = f"""
-{user_code}
-
-# Test execution
-def run_test():
-    try:
-        input_values = {test_case['input']}
-        result = {self.function_name}(*input_values)
-        return str(result)
-    except Exception as e:
-        return f"Error: {{str(e)}}"
-
-print(run_test())
-"""
-        return test_wrapper
-
-    def run_tests(self, code: str) -> List[TestResult]:
-        results = []
-        for test_case in self.problem['testCases']:
-            try:
-                # Create a temporary file with the test code
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-                    test_code = self.prepare_test_code(code, test_case)
-                    f.write(test_code)
-                    temp_file_path = f.name
-
-                # Run the test
-                process = subprocess.run(
-                    ['python', temp_file_path],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-
-                # Compare output with expected
-                actual_output = process.stdout.strip()
-                expected_output = str(test_case['expected_output'])
-                passed = actual_output == expected_output
-
-                results.append(TestResult(
-                    passed=passed,
-                    output=actual_output,
-                    expected=expected_output,
-                    error=process.stderr if process.stderr else None
-                ))
-
-            except Exception as e:
-                results.append(TestResult(
-                    passed=False,
-                    output="",
-                    expected=str(test_case['expected_output']),
-                    error=str(e)
-                ))
-            finally:
-                if os.path.exists(temp_file_path):
-                    os.remove(temp_file_path)
-
-        return results
+def load_prompt(filename: str) -> str:
+    with open(f"prompts/{filename}.txt", "r") as f:
+        return f.read()
 
 def format_prompt(question: str, code: str, history: list, problem: dict) -> dict:
-    system_prompt = f"""You are a friendly and approachable coding assistant helping with LeetCode problems. Your personality is:
-- Supportive and encouraging
-- Casual but professional
-- Clear and concise
-- Interactive and engaging
-
-Current Problem: {problem['title']} ({problem['difficulty']})
-Problem Description: {problem['description']}
-Examples: {problem['examples']}
-
-When responding:
-Reference function names when relevant
-Be encouraging and positive
-Keep explanations brief
-Ask questions to guide thinking
-Focus on one point at a time
-Never provide complete solutions
-
-Example responses:
-1. "Nice update! 🎉 I see you added a loop to your twoSum function. For Two Sum, we need to ensure we're checking all pairs efficiently."
-2. "No worries! 😊 In your findIndices function, let's think about how we can use a hash map to store the numbers we've seen."
-3. "Awesome progress! 🚀 Your calculateSum function is looking good. Now we can think about optimizing the space complexity."
-4. "Looking at your main function, I notice you're using nested loops. How about we explore a more efficient approach?"
-
-Remember: Track code changes, reference function names, and vary your responses based on conversation context! Always reference the current problem."""
+    system_prompt = load_prompt("chat").format(
+        problem_title=problem['title'],
+        problem_difficulty=problem['difficulty'],
+        problem_description=problem['description'],
+        examples=problem['examples']
+    )
 
     # Build conversation history
     messages = [{"role": "system", "content": system_prompt}]
@@ -358,30 +273,11 @@ async def validate_code(request: CodeValidationRequest):
             raise HTTPException(status_code=404, detail="Problem not found")
 
         # First, get Mistral's analysis of the code structure
-        analysis_prompt = f"""
-You are an extremely encouraging code validator for beginners. Your goal is to boost confidence and motivation.
-Analyze this solution for the {problem['title']} problem with a very lenient approach.
-
-Problem: {problem['description']}
-
-Proposed solution:
-```python
-{request.code}
-```
-
-Evaluation Guidelines:
-- If the code shows ANY attempt to solve the problem, consider it CORRECT
-- If they use relevant concepts (like loops, if statements, etc.), mark it CORRECT
-- If they show understanding of the basic problem, even if implementation is incomplete, mark it CORRECT
-- Only mark as INCORRECT if the code is completely unrelated or empty
-
-Default to CORRECT unless there's a strong reason not to.
-Always provide very encouraging feedback that motivates further learning.
-
-Only respond in this format:
-CLASSIFICATION: [CORRECT/INCORRECT]
-REASON: [Your very encouraging explanation highlighting what they did well]
-"""
+        analysis_prompt = load_prompt("validation").format(
+            problem_title=problem['title'],
+            problem_description=problem['description'],
+            code=request.code
+        )
 
         # Get Mistral's classification with extremely lenient criteria
         headers = {
@@ -447,38 +343,7 @@ REASON: [Your very encouraging explanation highlighting what they did well]
 async def get_problems():
     try:
         # Prompt for Mistral to generate a coding problem
-        problem_prompt = """Generate a simple coding problem similar to LeetCode problems. The problem should be beginner-friendly.
-
-IMPORTANT: Respond ONLY with a valid JSON object in exactly this format, with no additional text or formatting:
-{
-    "id": 1,
-    "title": "A clear, concise title",
-    "difficulty": "Easy",
-    "description": "A clear problem description with specific input/output requirements",
-    "functionName": "camelCaseFunctionName",
-    "parameters": ["parameter1", "parameter2"],
-    "examples": [
-        {
-            "input": "Simple input as string",
-            "expected_output": "Expected output as string",
-            "explanation": "Clear explanation of this example"
-        }
-    ],
-    "testCases": [
-        {"input": "Test input 1", "expected_output": "Expected output 1"},
-        {"input": "Test input 2", "expected_output": "Expected output 2"},
-        {"input": "Test input 3", "expected_output": "Expected output 3"}
-    ]
-}
-
-Make sure:
-- All JSON is properly formatted with double quotes
-- All values are strings (except id)
-- No trailing commas
-- No comments or additional text
-- Function name is in camelCase
-- Examples are simple and clear
-- Test cases match the problem requirements"""
+        problem_prompt = load_prompt("problem_generation")
 
         headers = {
             "Authorization": f"Bearer {MISTRAL_API_KEY}",
@@ -495,8 +360,11 @@ Make sure:
                         "role": "system",
                         "content": "You are a JSON generator that creates coding problems. You MUST respond with ONLY a valid JSON object, no markdown, no explanations, no additional text."
                     },
-                    {"role": "user", "content": problem_prompt}
-                ]
+                    {"role": "user", "content": problem_prompt}                    
+                ],
+                "response_format": {
+                    "type": "json_object"
+                }
             }
         )
         
@@ -542,7 +410,7 @@ Make sure:
                         "title": "Two Sum",
                         "difficulty": "Easy",
                         "description": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice.",
-                        "functionName": "twoSum",
+                        "functionName": "two_sum",
                         "parameters": ["nums", "target"],
                         "examples": [
                             {
@@ -572,5 +440,149 @@ def read_root():
 def read_item(item_id: int, q: str = None):
     return {"item_id": item_id, "q": q}
 
+# Add these new classes at the top with other models
+class TestGenerationRequest(BaseModel):
+    code: str
+    problem_id: int
+
+class TestCase(BaseModel):
+    input: str
+    expected_output: str
+    description: str = ""
+
+TEST_GENERATION_PROMPT = """Given this Python function and problem description, generate 3 test cases that thoroughly test the solution.
+
+Problem Description: {problem_description}
+Solution Code:
+{solution_code}
+
+Requirements:
+1. Generate test cases that cover:
+   - Normal cases
+   - Edge cases
+   - Common error scenarios
+2. Make sure test cases are valid Python expressions
+3. Ensure inputs match the function parameters
+4. Expected outputs should match the function return type
+
+example output (with ".." and "n" being respectively the inputs and function parameters):
+{{
+  "python_code": "def test_{function_name}():\\n    try:\\n        # Test case n: Description\\n        result = {function_name}([.., .., .., ..], ..)\\n        expected = [.., ..]\\n        print(f\\"Test case n: {{' Passed' if result == expected else ' Failed'}}\\")\n        print(f\\"  Input: nums=[.., .., .., ..], target=..\\")\n        print(f\\"  Expected: {{expected}}\\")\n        print(f\\"  Got: {{result}}\\")\n        assert result == expected\\n\\n        print(\\"\\\\nAll tests passed!\\")\n    except AssertionError as e:\\n        print(f\\"\\\\nTest failed: {{e}}\\")"
+}}"""
 
 
+# Add these new endpoints
+class GenerateTestsRequest(BaseModel):
+    code: str
+    problem_id: int
+
+@app.post("/api/generate-tests")
+async def generate_tests(request: GenerateTestsRequest):
+    try:
+        # Mock problem details (normally from database)
+        problem = {
+            'id': 1,
+            'description': 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+            'functionName': 'two_sum'
+        }
+
+        # Create test generation prompt
+        test_prompt = TEST_GENERATION_PROMPT.format(
+            problem_description=problem['description'],
+            function_name=problem['functionName'],
+            solution_code=request.code
+        )
+
+        # Make request to Mistral API
+        response = requests.post(
+            MISTRAL_API_URL,
+            headers={
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "mistral-large-latest",
+                "temperature": 0.0,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "You are a Python test case generator. Generate test cases with VALID PYTHON SYNTAX. Also you should give the python code in a json object with the following format: { \"python_code\": pythoncode}"
+                    },
+                    {
+                        "role": "user",
+                        "content": test_prompt
+                    }
+                ],
+                "response_format": {
+                    "type": "json_object"
+                }
+            }
+        )
+
+        content = response.json()["choices"][0]["message"]["content"]
+        return json.loads(content)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/run-tests")
+async def run_tests(request: GenerateTestsRequest):
+    try:
+        # Generate test cases
+        test_cases = await generate_tests(request)
+        print("\nTest Cases:")
+        print(test_cases)
+
+        # Create a StringIO to capture print output
+        output_buffer = StringIO()
+        sys.stdout = output_buffer
+
+        try:
+            # Execute the test code
+            exec_code = f"""
+{request.code}
+
+{test_cases['python_code']}
+
+# Run the tests
+test_two_sum()
+"""
+            namespace = {}
+            exec(exec_code, namespace)
+            
+            # Get the captured output
+            output = output_buffer.getvalue()
+            
+            # Parse the output to get test results
+            output_lines = output.strip().split('\n')
+            results = []
+            current_test = {}
+            
+            for line in output_lines:
+                if line.startswith("Test case"):
+                    if current_test:
+                        results.append(current_test)
+                    current_test = {
+                        "description": line,
+                        "passed": "Passed" in line
+                    }
+                elif "Input:" in line:
+                    current_test["input"] = line.split("Input:")[1].strip()
+                elif "Expected:" in line:
+                    current_test["expected_output"] = line.split("Expected:")[1].strip()
+                elif "Got:" in line:
+                    current_test["output"] = line.split("Got:")[1].strip()
+            
+            if current_test:
+                results.append(current_test)
+                
+            return {"results": results}
+
+        finally:
+            # Restore stdout
+            sys.stdout = sys.__stdout__
+
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

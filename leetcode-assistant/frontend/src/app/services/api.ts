@@ -152,5 +152,23 @@ export const api = {
     }
 
     return response.json();
-  }
+  },
+
+  generateTests: async (code: string, problemId: number) => 
+    fetch(`${API_BASE_URL}/api/generate-tests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, problem_id: problemId })
+    }).then(res => res.json()),
+    
+  runTests: async (code: string, problemId: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/run-tests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, problem_id: problemId })
+    });
+    const data = await response.json();
+    console.log('API Response:', data);  // Debug log
+    return data;
+  },
 };

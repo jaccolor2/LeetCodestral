@@ -1,0 +1,32 @@
+Generate a simple coding problem similar to LeetCode problems. The problem should be beginner-friendly.
+
+IMPORTANT: Respond ONLY with a valid JSON object in exactly this format, with no additional text or formatting:
+{
+    "id": 1,
+    "title": "A clear, concise title",
+    "difficulty": "Easy",
+    "description": "A clear problem description with specific input/output requirements",
+    "functionName": "camelCaseFunctionName",
+    "parameters": ["parameter1", "parameter2"],
+    "examples": [
+        {
+            "input": "Simple input as string",
+            "expected_output": "Expected output as string",
+            "explanation": "Clear explanation of this example"
+        }
+    ],
+    "testCases": [
+        {"input": "Test input 1", "expected_output": "Expected output 1"},
+        {"input": "Test input 2", "expected_output": "Expected output 2"},
+        {"input": "Test input 3", "expected_output": "Expected output 3"}
+    ]
+}
+
+Make sure:
+- All JSON is properly formatted with double quotes
+- All values are strings (except id)
+- No trailing commas
+- No comments or additional text
+- Function name is in camelCase
+- Examples are simple and clear
+- Test cases match the problem requirements 
