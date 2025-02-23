@@ -15,7 +15,7 @@ export function ProblemDescription({ problem, code, onRunTests }: ProblemDescrip
   } as const;
 
   return (
-    <div className="text-gray-200 h-full overflow-y-auto p-4">
+    <div className="text-gray-200 h-full overflow-y-auto scrollbar-thin">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{problem.title}</h1>
         <span className={`${difficultyColor[problem.difficulty as keyof typeof difficultyColor]} text-white px-3 py-1 rounded-full text-sm`}>
