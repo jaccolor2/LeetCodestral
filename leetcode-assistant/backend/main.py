@@ -54,7 +54,9 @@ class TestResult:
 
 def load_prompt(filename: str) -> str:
     with open(f"prompts/{filename}.txt", "r") as f:
-        return f.read()
+        content = f.read()
+        # Replace double backslashes with single backslashes
+        return content.replace('\\\\n', '\n')
 
 def format_prompt(question: str, code: str, history: list, problem: dict) -> dict:
     system_prompt = load_prompt("chat").format(
@@ -342,91 +344,38 @@ async def validate_code(request: CodeValidationRequest):
 @app.get("/api/problems")
 async def get_problems():
     try:
-        # Prompt for Mistral to generate a coding problem
-        problem_prompt = load_prompt("problem_generation")
-
-        headers = {
-            "Authorization": f"Bearer {MISTRAL_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
+        # Create problem generation prompt
+        prompt = load_prompt("problem_generation")
+        
+        # Make request to Mistral API
         response = requests.post(
             MISTRAL_API_URL,
-            headers=headers,
+            headers={
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
             json={
                 "model": "mistral-large-latest",
+                "temperature": 0.0,
                 "messages": [
                     {
-                        "role": "system",
-                        "content": "You are a JSON generator that creates coding problems. You MUST respond with ONLY a valid JSON object, no markdown, no explanations, no additional text."
-                    },
-                    {"role": "user", "content": problem_prompt}                    
+                        "role": "user",
+                        "content": prompt
+                    }
                 ],
                 "response_format": {
                     "type": "json_object"
                 }
             }
         )
-        
+
         problem_json = response.json()["choices"][0]["message"]["content"]
+        problem = json.loads(problem_json)
         
-        # Clean and parse the response
-        try:
-            # Remove any potential markdown formatting
-            problem_json = problem_json.replace("```json", "").replace("```", "").strip()
-            
-            # Find the JSON object
-            json_start = problem_json.find("{")
-            json_end = problem_json.rfind("}") + 1
-            
-            if json_start == -1 or json_end <= json_start:
-                raise ValueError("No valid JSON object found in response")
-                
-            problem_json = problem_json[json_start:json_end]
-            
-            # Parse the JSON
-            problem = json.loads(problem_json)
-            
-            # Validate required fields
-            required_fields = ["id", "title", "difficulty", "description", "functionName", "parameters", "examples", "testCases"]
-            missing_fields = [field for field in required_fields if field not in problem]
-            
-            if missing_fields:
-                raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
-            
-            # Return in the expected format
-            return {
-                "problems": [problem]
-            }
-            
-        except (json.JSONDecodeError, ValueError) as e:
-            print("Error parsing Mistral response:", e)
-            print("Raw response:", problem_json)
-            # Fallback to default problem
-            return {
-                "problems": [
-                    {
-                        "id": 1,
-                        "title": "Two Sum",
-                        "difficulty": "Easy",
-                        "description": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice.",
-                        "functionName": "two_sum",
-                        "parameters": ["nums", "target"],
-                        "examples": [
-                            {
-                                "input": "[2,7,11,15], 9",
-                                "expected_output": "[0,1]",
-                                "explanation": "Because nums[0] + nums[1] == 9, we return [0, 1]"
-                            }
-                        ],
-                        "testCases": [
-                            {"input": "[2,7,11,15], 9", "expected_output": "[0,1]"},
-                            {"input": "[3,2,4], 6", "expected_output": "[1,2]"},
-                            {"input": "[3,3], 6", "expected_output": "[0,1]"}
-                        ]
-                    }
-                ]
-            }
+        # Return the generated problem in the expected format
+        return {
+            "problems": [problem]
+        }
 
     except Exception as e:
         print("Error generating problem:", e)
@@ -477,21 +426,35 @@ class GenerateTestsRequest(BaseModel):
     problem_id: int
 
 @app.post("/api/generate-tests")
-async def generate_tests(request: GenerateTestsRequest):
+async def generate_tests(request: GenerateTestsRequest, problem=None):
     try:
-        # Mock problem details (normally from database)
-        problem = {
-            'id': 1,
-            'description': 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
-            'functionName': 'two_sum'
-        }
+        # Get problem details if not provided
+        if not problem:
+            problems = await get_problems()
+            problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+            
+            if not problem:
+                raise HTTPException(status_code=404, detail="Problem not found")
 
-        # Create test generation prompt
-        test_prompt = TEST_GENERATION_PROMPT.format(
+        # Compare both prompts after formatting
+        file_prompt = load_prompt("test_generation").format(
             problem_description=problem['description'],
             function_name=problem['functionName'],
             solution_code=request.code
         )
+        
+        hardcoded_prompt = TEST_GENERATION_PROMPT.format(
+            problem_description=problem['description'],
+            function_name=problem['functionName'],
+            solution_code=request.code
+        )
+        
+        print("File prompt after formatting:>>>\n", file_prompt, "\n<<<end")
+        print("Hardcoded prompt after formatting:>>>\n", hardcoded_prompt, "\n<<<end")
+        print("Are they different?", file_prompt != hardcoded_prompt)
+        
+        # Continue with the original code using file_prompt
+        test_prompt = file_prompt
 
         # Make request to Mistral API
         response = requests.post(
@@ -519,6 +482,7 @@ async def generate_tests(request: GenerateTestsRequest):
             }
         )
 
+        print("response:>>>\n", response.json(), "\n<<<end")
         content = response.json()["choices"][0]["message"]["content"]
         return json.loads(content)
 
@@ -529,8 +493,16 @@ async def generate_tests(request: GenerateTestsRequest):
 @app.post("/api/run-tests")
 async def run_tests(request: GenerateTestsRequest):
     try:
-        # Generate test cases
-        test_cases = await generate_tests(request)
+        # Get problem details first
+        problems = await get_problems()
+        problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+        print(problem)
+        
+        if not problem:
+            raise HTTPException(status_code=404, detail="Problem not found")
+
+        # Generate test cases with the problem
+        test_cases = await generate_tests(request, problem)
         print("\nTest Cases:")
         print(test_cases)
 
@@ -539,14 +511,14 @@ async def run_tests(request: GenerateTestsRequest):
         sys.stdout = output_buffer
 
         try:
-            # Execute the test code
+            # Execute the test code using the function name from the problem
             exec_code = f"""
 {request.code}
 
 {test_cases['python_code']}
 
 # Run the tests
-test_two_sum()
+test_{problem['functionName']}()
 """
             namespace = {}
             exec(exec_code, namespace)

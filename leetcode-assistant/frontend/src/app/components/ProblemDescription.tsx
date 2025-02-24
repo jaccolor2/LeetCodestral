@@ -8,6 +8,10 @@ interface ProblemDescriptionProps {
 }
 
 export function ProblemDescription({ problem, code, onRunTests }: ProblemDescriptionProps) {
+  if (!problem) {
+    return <div className="text-gray-200">Loading problem...</div>;
+  }
+
   const difficultyColor = {
     Easy: 'bg-green-500',
     Medium: 'bg-yellow-500',

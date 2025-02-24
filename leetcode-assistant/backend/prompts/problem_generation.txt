@@ -4,9 +4,9 @@ IMPORTANT: Respond ONLY with a valid JSON object in exactly this format, with no
 {
     "id": 1,
     "title": "A clear, concise title",
-    "difficulty": "Easy",
+    "difficulty": "difficulty level (easy, medium, hard)",
     "description": "A clear problem description with specific input/output requirements",
-    "functionName": "camelCaseFunctionName",
+    "functionName": "snake_case_function_name",
     "parameters": ["parameter1", "parameter2"],
     "examples": [
         {
@@ -30,3 +30,4 @@ Make sure:
 - Function name is in camelCase
 - Examples are simple and clear
 - Test cases match the problem requirements 
+- function name should be in snake_case

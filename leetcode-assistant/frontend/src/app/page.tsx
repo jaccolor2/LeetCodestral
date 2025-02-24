@@ -18,10 +18,12 @@ export default function Home() {
   const [testResults, setTestResults] = useState<any[]>([]);
 
   const handleGenerateTests = async () => {
+    if (!currentProblem) return;
     return api.generateTests(code, currentProblem.id);
   };
 
   const handleRunTests = async () => {
+    if (!currentProblem) return { results: [] };
     try {
       const response = await api.runTests(code, currentProblem.id);
       setTestResults(response.results);
