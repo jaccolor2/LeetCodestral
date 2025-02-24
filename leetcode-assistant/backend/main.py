@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import requests
 from dotenv import load_dotenv
@@ -32,23 +32,26 @@ app.add_middleware(
 MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 
+class TestResult(BaseModel):
+    description: str
+    input: str
+    expected_output: str
+    output: str
+    passed: bool
+    error: Optional[str] = None
+
 class ChatRequest(BaseModel):
     message: str
     code: str = ""
     problem_id: int
+    history: List[dict] = []
+    testResults: Optional[List[TestResult]] = None
 
 class ChatResponse(BaseModel):
     response: str
 
 class CodeExecutionRequest(BaseModel):
     code: str
-
-class TestResult:
-    def __init__(self):
-        self.error = None
-        self.output = ""
-        self.expected = ""
-        self.passed = False
 
 class CodeEvaluator:
     def __init__(self, problem):
@@ -77,12 +80,13 @@ def load_prompt(filename: str) -> str:
         # Replace double backslashes with single backslashes
         return content.replace('\\\\n', '\n')
 
-def format_prompt(question: str, code: str, history: list, problem: dict) -> dict:
+def format_prompt(question: str, code: str, history: list, problem: dict, test_results: Optional[List[dict]] = None) -> dict:
     system_prompt = load_prompt("chat").format(
         problem_title=problem['title'],
         problem_difficulty=problem['difficulty'],
         problem_description=problem['description'],
-        examples=problem['examples']
+        examples=problem['examples'],
+        test_results=test_results if test_results else "No test results available"
     )
 
     # Build conversation history
@@ -113,6 +117,13 @@ Please guide me to solve this problem without providing the complete solution.""
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
+        # Add debug logs
+        print("Received chat request:")
+        print(f"Message: {request.message}")
+        print(f"Code length: {len(request.code)}")
+        print(f"History length: {len(request.history)}")
+        print(f"Test results: {request.testResults}")
+        
         # Get problem details
         problems = await get_problems()
         problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
@@ -127,8 +138,13 @@ async def chat(request: ChatRequest):
             "Content-Type": "application/json"
         }
 
-        data = format_prompt(request.message, request.code, [], problem)
+        data = format_prompt(request.message, request.code, request.history, problem, request.testResults)
         data["stream"] = True
+
+        # Log the formatted prompt
+        formatted_prompt = data
+        print("\nFormatted prompt sent to model:")
+        print(formatted_prompt)
 
         # Make streaming request
         response = requests.post(MISTRAL_API_URL, headers=headers, json=data, stream=True)
@@ -240,7 +256,7 @@ Code:
 ```
 
 Test Results:
-{[f"Test {i+1}: {'Passed' if r.passed else 'Failed'} (Expected: {r.expected}, Got: {r.output})" for i, r in enumerate(test_results)]}
+{[f"Test {i+1}: {'Passed' if r.passed else 'Failed'} (Expected: {r.expected_output}, Got: {r.output})" for i, r in enumerate(test_results)]}
 
 Please provide a detailed analysis of:
 1. Correctness: Does the code solve the problem correctly?

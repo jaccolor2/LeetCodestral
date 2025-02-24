@@ -4,6 +4,13 @@ export interface ChatRequest {
   message: string;
   code: string;
   problem_id: number;
+  history: Array<{ role: string; content: string }>;
+  testResults?: Array<{
+    passed: boolean;
+    output: string;
+    expected: string;
+    error?: string;
+  }>;
 }
 
 export interface ChatResponse {
@@ -35,9 +42,28 @@ export interface ValidationResponse {
 
 export const api = {
   async chat(
-    params: { message: string; code: string; problem_id: number },
+    params: { 
+      message: string; 
+      code: string; 
+      problem_id: number; 
+      history: Array<{ role: string; content: string }>;
+      testResults?: Array<{
+        passed: boolean;
+        output: string;
+        expected: string;
+        error?: string;
+      }>;
+    },
     onChunk: (chunk: string) => void
   ) {
+    // Add debug logs
+    console.log('Sending chat request:', {
+      message: params.message,
+      code: params.code.slice(0, 100) + '...', // Truncate code for readability
+      history: params.history,
+      testResults: params.testResults
+    });
+
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: {

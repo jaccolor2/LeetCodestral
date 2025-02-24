@@ -19,7 +19,11 @@ export function useChat() {
     localStorage.setItem('chatMessages', JSON.stringify(messages));
   }, [messages]);
 
-  const handleAskQuestion = async (question: string, code: string) => {
+  const handleAskQuestion = async (
+    question: string, 
+    code: string,
+    testResults?: Array<{ passed: boolean; output: string; expected: string; error?: string }>
+  ) => {
     if (!question.trim()) return;
     
     const loadingId = Date.now();
@@ -27,7 +31,6 @@ export function useChat() {
     try {
       setLoading(true);
       
-      // Combine both messages in a single update
       setMessages(prev => [...prev, 
         { role: 'user', content: question },
         { role: 'assistant', content: '', id: loadingId }
@@ -38,7 +41,12 @@ export function useChat() {
         {
           message: question,
           code: code,
-          problem_id: 1
+          problem_id: 1,
+          history: messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          testResults
         },
         (message) => {
           if (message === '[DONE]') return;

@@ -117,7 +117,7 @@ export default function Home() {
         <ChatWindow
           messages={messages}
           loading={loading}
-          onSend={(question) => handleAskQuestion(question, code)}
+          onSend={(question) => handleAskQuestion(question, code, testResults)}
           setMessages={setMessages}
         />
       }
