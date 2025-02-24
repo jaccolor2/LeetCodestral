@@ -139,19 +139,44 @@ export const api = {
   },
 
   validate: async (code: string, problemId: number): Promise<ValidationResponse> => {
-    const response = await fetch(`${API_BASE_URL}/api/validate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ code, problem_id: problemId }),
-    });
+    try {
+      console.log('Sending validation request:', { code, problemId }); // Debug log
 
-    if (!response.ok) {
-      throw new Error('Failed to validate code');
+      const response = await fetch(`${API_BASE_URL}/api/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code, problem_id: problemId }),
+      });
+
+      const contentType = response.headers.get('content-type');
+      console.log('Response content type:', contentType); // Debug log
+
+      if (!response.ok) {
+        let errorDetail;
+        try {
+          // Try to get error details from response
+          errorDetail = await response.text();
+          console.error('Error response body:', errorDetail);
+        } catch (e) {
+          errorDetail = 'No error details available';
+        }
+
+        throw new Error(`Validation failed (${response.status}): ${errorDetail}`);
+      }
+
+      const data = await response.json();
+      console.log('Validation response:', data); // Debug log
+      return data;
+    } catch (error: any) {
+      console.error('Validation error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      throw error;
     }
-
-    return response.json();
   },
 
   generateTests: async (code: string, problemId: number) => 

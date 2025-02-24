@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import os
 import requests
 from dotenv import load_dotenv
@@ -44,13 +44,32 @@ class CodeExecutionRequest(BaseModel):
     code: str
 
 class TestResult:
-    def __init__(self, passed: bool, output: str, expected: str, error: str = None):
-        self.passed = passed
-        self.output = output
-        self.expected = expected
-        self.error = error
+    def __init__(self):
+        self.error = None
+        self.output = ""
+        self.expected = ""
+        self.passed = False
 
+class CodeEvaluator:
+    def __init__(self, problem):
+        self.problem = problem
 
+    def run_tests(self, code: str) -> List[TestResult]:
+        # Basic implementation
+        result = TestResult()
+        try:
+            # Execute the code in a safe environment
+            # This is a basic implementation - you might want to add more security
+            local_dict = {}
+            exec(code, {}, local_dict)
+            
+            result.output = "Code executed successfully"
+            result.passed = True
+        except Exception as e:
+            result.error = str(e)
+            result.passed = False
+        
+        return [result]
 
 def load_prompt(filename: str) -> str:
     with open(f"prompts/{filename}.txt", "r") as f:
@@ -371,6 +390,7 @@ async def get_problems():
 
         problem_json = response.json()["choices"][0]["message"]["content"]
         problem = json.loads(problem_json)
+        print("problem:>>>\n", problem, "\n<<<end")
         
         # Return the generated problem in the expected format
         return {
@@ -549,7 +569,27 @@ test_{problem['functionName']}()
             if current_test:
                 results.append(current_test)
                 
-            return {"results": results}
+            # After getting the test results, check if all tests passed
+            all_tests_passed = all(result.get("passed", False) for result in results)
+            
+            # If all tests passed, run validation
+            validation_result = None
+            if all_tests_passed:
+                try:
+                    validation_request = ValidationRequest(
+                        code=request.code,
+                        problem_id=request.problem_id
+                    )
+                    validation_result = await validate(validation_request)
+                except Exception as e:
+                    print(f"Validation error: {e}")
+                    # Don't fail the whole request if validation fails
+                    pass
+
+            return {
+                "results": results,
+                "validation": validation_result.dict() if validation_result else None
+            }
 
         finally:
             # Restore stdout
@@ -557,4 +597,86 @@ test_{problem['functionName']}()
 
     except Exception as e:
         print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Add these new classes near the top with other BaseModel classes
+class ValidationRequest(BaseModel):
+    code: str
+    problem_id: int
+
+class ValidationResponse(BaseModel):
+    classification: str
+    reason: str
+    test_results: Optional[List[dict]] = None
+    next_problem: Optional[int] = None
+
+# Add this new endpoint
+@app.post("/api/validate")
+async def validate(request: ValidationRequest):
+    try:
+        # Get problem details
+        problems = await get_problems()
+        problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+        
+        if not problem:
+            raise HTTPException(status_code=404, detail="Problem not found")
+
+        # Load validation prompt
+        validation_prompt = load_prompt("validation").format(
+            problem_title=problem['title'],
+            problem_description=problem['description'],
+            code=request.code
+        )
+
+        # Call Mistral API for validation
+        response = requests.post(
+            MISTRAL_API_URL,
+            headers={
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "mistral-large-latest",
+                "temperature": 0.0,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": validation_prompt
+                    }
+                ]
+            }
+        )
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to validate code")
+
+        # Parse the response
+        content = response.json()["choices"][0]["message"]["content"]
+        
+        # Extract classification and reason with explicit mapping
+        classification = "INCORRECT"
+        reason = "Could not validate the solution"
+        
+        for line in content.split('\n'):
+            if line.startswith("CLASSIFICATION:"):
+                raw_classification = line.split(':')[1].strip().upper()
+                # Ensure classification is exactly 'CORRECT' or 'INCORRECT'
+                classification = 'CORRECT' if raw_classification == 'CORRECT' else 'INCORRECT'
+            elif line.startswith("REASON:"):
+                reason = line.split(':')[1].strip()
+
+        print(f"Validation result: classification={classification}, reason={reason}")  # Debug log
+
+        # Prepare the response
+        validation_response = ValidationResponse(
+            classification=classification,
+            reason=reason,
+            next_problem=problem['id'] + 1 if classification == 'CORRECT' else None
+        )
+
+        print(f"Sending validation response: {validation_response.dict()}")  # Debug log
+        return validation_response
+
+    except Exception as e:
+        print(f"Validation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

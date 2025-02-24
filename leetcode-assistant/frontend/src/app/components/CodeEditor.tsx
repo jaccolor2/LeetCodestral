@@ -6,73 +6,23 @@ interface CodeEditorProps {
   code: string;
   onChange: (value: string) => void;
   onRun: () => Promise<any>;
-  onValidate: (code: string, problemId: number) => Promise<ValidationResponse>;
   isRunning: boolean;
-  validating: boolean;
   output: string;
+  onValidate?: (code: string, problemId: number) => Promise<ValidationResponse>;
+  validating?: boolean;
 }
 
 export function CodeEditor({ 
   code, 
   onChange, 
   onRun, 
-  onValidate, 
-  isRunning, 
-  validating,
+  isRunning,
   output 
 }: CodeEditorProps) {
   const [language, setLanguage] = useState('python');
-  const [validationResult, setValidationResult] = useState<ValidationResponse | null>(null);
-
-  const handleValidate = async () => {
-    try {
-      const result = await onValidate(code, 1);
-      setValidationResult(result);
-    } catch (error) {
-      console.error('Validation failed:', error);
-    }
-  };
-
-  const handleSkip = () => {
-    setValidationResult(null);
-  };
-
-  const handleKeepImproving = () => {
-    setValidationResult(null);
-  };
 
   return (
     <>
-      {/* Modal Overlay */}
-      {validationResult?.classification === 'CORRECT' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl">
-            <div className="text-center">
-              <div className="text-3xl text-green-400 font-bold mb-4">
-                🎉 Solution Correct! 🎉
-              </div>
-              <div className="text-white text-lg mb-6">
-                {validationResult.reason}
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={handleSkip}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg text-lg transition-colors"
-                >
-                  Skip to Next Problem
-                </button>
-                <button
-                  onClick={handleKeepImproving}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-lg transition-colors"
-                >
-                  Keep Improving
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Main Editor */}
       <div className="h-full flex flex-col">
         {/* Header with language selector and buttons */}
@@ -95,13 +45,6 @@ export function CodeEditor({
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded-md text-sm disabled:bg-gray-600"
             >
               {isRunning ? 'Running...' : 'Run Code'}
-            </button>
-            <button
-              onClick={handleValidate}
-              disabled={validating}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-1 rounded-md text-sm disabled:bg-gray-600"
-            >
-              {validating ? 'Validating...' : 'Validate'}
             </button>
           </div>
         </div>
@@ -126,18 +69,6 @@ export function CodeEditor({
               }}
             />
           </div>
-          
-          {/* Validation Result for incorrect solutions */}
-          {validationResult?.classification === 'INCORRECT' && (
-            <div className="h-[15%] border-t border-gray-700 bg-gray-800">
-              <div className="h-full flex flex-col p-4">
-                <div className="text-lg text-yellow-400">
-                  Keep Improving
-                </div>
-                <div className="text-white text-sm mt-2">{validationResult.reason}</div>
-              </div>
-            </div>
-          )}
           
           {/* Output Panel */}
           <div className="h-[25%] border-t border-gray-700 flex flex-col">
