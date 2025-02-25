@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -14,6 +14,13 @@ import inspect
 import time
 from io import StringIO
 import sys
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+from database import get_db
+from models import User, Conversation
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -31,6 +38,14 @@ app.add_middleware(
 # Initialize Mistral API URL and API key
 MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+
+# Add these near the top with other imports
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class TestResult(BaseModel):
     description: str
@@ -114,8 +129,44 @@ Please guide me to solve this problem without providing the complete solution.""
         "messages": messages
     }
 
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+        
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+def authenticate_user(email: str, password: str, db: Session):
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not pwd_context.verify(password, user.hashed_password):
+        return None
+    return user
+
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     try:
         # Add debug logs
         print("Received chat request:")
@@ -180,6 +231,15 @@ async def chat(request: ChatRequest):
                 "content": "[DONE]",
                 "timestamp": int(time.time() * 1000)
             }) + "\n"
+
+        # Save conversation to database
+        conversation = Conversation(
+            user_id=current_user.id,
+            problem_id=request.problem_id,
+            messages=request.history + [{"role": "user", "content": request.message}]
+        )
+        db.add(conversation)
+        db.commit()
 
         return StreamingResponse(generate(), media_type="text/event-stream")
     except Exception as e:
@@ -696,3 +756,39 @@ async def validate(request: ValidationRequest):
     except Exception as e:
         print(f"Validation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Add this with the other models at the top of the file
+class UserCreate(BaseModel):
+    email: str
+    password: str
+
+# Update the register endpoint
+@app.post("/api/register")
+async def register(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if user exists
+    if db.query(User).filter(User.email == user.email).first():
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+    
+    # Create new user with hashed password
+    hashed_password = pwd_context.hash(user.password)
+    db_user = User(email=user.email, hashed_password=hashed_password)
+    db.add(db_user)
+    db.commit()
+    
+    # Return JWT token
+    access_token = create_access_token(data={"sub": db_user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = authenticate_user(form_data.username, form_data.password, db)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password"
+        )
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MainLayout } from './components/layout/MainLayout';
 import { useChat } from './hooks/useChat';
 import { useCodeExecution } from './hooks/useCodeExecution';
@@ -10,16 +11,51 @@ import { ChatWindow } from './components/chat/ChatWindow';
 import { api } from './services/api';
 import TestResults from './components/TestResults';
 import { ValidationResponse } from './types/api';
+import { useAuth } from './hooks/useAuth';
 
 export default function Home() {
+  // Auth hooks
+  const { isLoggedIn, isLoading } = useAuth();
+  const router = useRouter();
+
+  // Feature hooks
   const { messages, loading, handleAskQuestion, setMessages } = useChat();
   const { code, setCode, runCode, isRunning, output } = useCodeExecution();
   const { currentProblem, validate, validating } = useProblem();
+
+  // State hooks
   const [isProblemPanelVisible, setIsProblemPanelVisible] = useState(true);
   const [testResults, setTestResults] = useState<any[]>([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResponse | null>(null);
 
+  // Auth effect
+  useEffect(() => {
+    if (!isLoading && !isLoggedIn) {
+      router.push('/login');
+    }
+  }, [isLoggedIn, isLoading, router]);
+
+  // Debug effect
+  useEffect(() => {
+    console.log('State changed:', {
+      showSuccessModal,
+      validationResult,
+      isCorrect: validationResult?.classification === 'CORRECT'
+    });
+  }, [showSuccessModal, validationResult]);
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="text-white">Loading...</div>
+    </div>;
+  }
+
+  if (!isLoggedIn) {
+    return null;
+  }
+
+  // Handler functions
   const handleGenerateTests = async () => {
     if (!currentProblem) return;
     try {
@@ -37,14 +73,11 @@ export default function Home() {
     }
     
     try {
-      // Add debug log before API call
       console.log('Running tests with code:', code);
-      
       const response = await api.runTests(code, currentProblem.id);
       console.log('Full API response:', response);
       setTestResults(response.results);
 
-      // More detailed validation logging
       console.log('Validation state:', {
         validationReceived: !!response.validation,
         validationResult: response.validation,
@@ -53,7 +86,6 @@ export default function Home() {
 
       if (response.validation) {
         setValidationResult(response.validation);
-        // Add immediate check of the new validation result
         console.log('Setting validation result:', response.validation);
         
         if (response.validation.classification === 'CORRECT') {
@@ -76,22 +108,12 @@ export default function Home() {
   const handleSkip = () => {
     setShowSuccessModal(false);
     setValidationResult(null);
-    // Add logic to move to next problem if needed
   };
 
   const handleKeepImproving = () => {
     setShowSuccessModal(false);
     setValidationResult(null);
   };
-
-  // Add debug effect to monitor state changes
-  useEffect(() => {
-    console.log('State changed:', {
-      showSuccessModal,
-      validationResult,
-      isCorrect: validationResult?.classification === 'CORRECT'
-    });
-  }, [showSuccessModal, validationResult]);
 
   return (
     <MainLayout
@@ -122,14 +144,12 @@ export default function Home() {
         />
       }
     >
-      {/* Debug element to always show current state */}
       <div className="fixed top-0 left-0 bg-black bg-opacity-50 p-2 text-white text-xs">
         Modal should show: {String(showSuccessModal && validationResult?.classification === 'CORRECT')}
       </div>
 
       {showSuccessModal && validationResult && validationResult.classification === 'CORRECT' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center"
-             style={{pointerEvents: 'auto'}}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center">
           <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl border-2 border-green-400">
             <div className="text-center">
               <div className="text-3xl text-green-400 font-bold mb-4">
@@ -169,3 +189,4 @@ export default function Home() {
     </MainLayout>
   );
 }
+

@@ -1,3 +1,5 @@
+import { useAuth } from '../hooks/useAuth';
+
 const API_BASE_URL = 'http://localhost:8000';
 
 export interface ChatRequest {
@@ -56,6 +58,9 @@ export const api = {
     },
     onChunk: (chunk: string) => void
   ) {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Not authenticated');
+
     // Add debug logs
     console.log('Sending chat request:', {
       message: params.message,
@@ -69,6 +74,7 @@ export const api = {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(params)
     });
@@ -220,6 +226,43 @@ export const api = {
     });
     const data = await response.json();
     console.log('API Response:', data);  // Debug log
+    return data;
+  },
+
+  async register(email: string, password: string) {
+    const response = await fetch(`${API_BASE_URL}/api/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Registration failed');
+    }
+
+    const data = await response.json();
+    localStorage.setItem('token', data.access_token);
+    return data;
+  },
+
+  async login(email: string, password: string) {
+    const formData = new FormData();
+    formData.append('username', email);
+    formData.append('password', password);
+    
+    const response = await fetch(`${API_BASE_URL}/api/token`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error('Login failed');
+    }
+    
+    const data = await response.json();
+    localStorage.setItem('token', data.access_token);
     return data;
   },
 };
