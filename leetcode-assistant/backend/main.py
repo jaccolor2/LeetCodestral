@@ -161,6 +161,11 @@ def authenticate_user(email: str, password: str, db: Session):
         return None
     return user
 
+class ModerationFailureResponse(BaseModel):
+    is_moderated: bool = True
+    reason: str
+    categories: List[str]
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
@@ -168,6 +173,26 @@ async def chat(
     db: Session = Depends(get_db)
 ):
     try:
+        # Check moderation first
+        is_safe = await check_moderation(request.message)
+        if not is_safe:
+            def generate_moderation_message():
+                yield json.dumps({
+                    "role": "assistant",
+                    "content": "Your message was flagged as inappropriate. Please rephrase your question.",
+                    "timestamp": int(time.time() * 1000)
+                }) + "\n"
+                yield json.dumps({
+                    "role": "assistant",
+                    "content": "[DONE]",
+                    "timestamp": int(time.time() * 1000)
+                }) + "\n"
+
+            return StreamingResponse(
+                generate_moderation_message(),
+                media_type="text/event-stream"
+            )
+
         # Add debug logs
         print("Received chat request:")
         print(f"Message: {request.message}")
@@ -191,6 +216,7 @@ async def chat(
 
         data = format_prompt(request.message, request.code, request.history, problem, request.testResults)
         data["stream"] = True
+        data["temperature"] = 0.8
 
         # Log the formatted prompt
         formatted_prompt = data
@@ -792,3 +818,97 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         )
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+class ModerationRequest(BaseModel):
+    input: List[Dict[str, str]]
+    model: str = "mistral-large-latest"
+
+async def check_moderation(content: str) -> bool:
+    """
+    Returns True if content is safe, False if it should be blocked
+    """
+    try:
+        # Define blocked categories and their descriptions
+        blocked_categories = {
+            "sexual": "sexual or adult content",
+            "hate_and_discrimination": "hateful or discriminatory content",
+            "violence_and_threats": "violent content or threats",
+            "dangerous_and_criminal_content": "dangerous or illegal activities",
+            "selfharm": "content related to self-harm",
+            "health": "misleading health information",
+            "financial": "misleading financial advice",
+            "law": "misleading legal advice",
+            "pii": "personal identifiable information"
+        }
+        
+        print("\n=== MODERATION CHECK ===")
+        print(f"Content to moderate: {content}")
+
+        moderation_response = requests.post(
+            "https://api.mistral.ai/v1/chat/moderations",
+            headers={
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "input": [{
+                    "content": content,
+                    "role": "user"
+                }],
+                "model": "mistral-moderation-latest"
+            }
+        )
+
+        print(f"\nModeration API Status Code: {moderation_response.status_code}")
+        print(f"Full API Response: {moderation_response.text}")
+
+        if moderation_response.status_code != 200:
+            print(f"Moderation API error: {moderation_response.text}")
+            return True  # Default to allowing if API fails
+
+        results = moderation_response.json().get("results", [{}])[0]
+        categories = results.get("categories", {})
+        scores = results.get("category_scores", {})
+        
+        print("\nDetected Categories:")
+        for category, is_detected in categories.items():
+            score = scores.get(category, 0)
+            print(f"- {category}: {is_detected} (score: {score:.4f})")
+    
+        for category in blocked_categories:
+            if categories.get(category, False):
+                print(f"\n❌ Content blocked due to {category} content")
+                return False
+        
+        print("\n✅ Content passed moderation check")
+        return True
+
+    except Exception as e:
+        print(f"\n⚠️ Moderation check failed with error: {e}")
+        return True  # Default to allowing if check fails
+
+@app.post("/api/moderate")
+async def moderate_content(request: ModerationRequest):
+    try:
+        response = requests.post(
+            "https://api.mistral.ai/v1/moderations",
+            headers={
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json=request.dict()
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Moderation API error: {response.text}"
+            )
+            
+        return response.json()
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Moderation check failed: {str(e)}"
+        )
