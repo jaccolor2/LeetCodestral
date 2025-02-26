@@ -1,5 +1,7 @@
 ﻿# LeetCode Assistant
 
+![Frontend Example](frontend_example.png)
+
 An interactive coding platform that helps you learn and practice coding.
 
 ## Features
