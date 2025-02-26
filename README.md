@@ -59,6 +59,7 @@ An interactive coding platform that helps you learn and practice coding.
 
     ```bash
     pip install -r requirements.txt
+    python init_db.py
     ```
 
 4. **Create a `.env` file in the backend directory:**
