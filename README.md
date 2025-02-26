@@ -13,6 +13,25 @@ An interactive coding platform that helps you learn and practice coding.
 - 🔒 User authentication system
 - 📈 Progressive problem difficulty
 
+## How It Works
+
+### Problem Description Panel
+
+When the user arrives on the page, the problem description panel is initially empty. The problem description is AI-generated using the Mistral AI API with the `mistral-large-latest` model in JSON mode. Once the problem is generated, it is displayed in the panel.
+
+### Running Tests
+
+The "Run Tests" button will work if the function name in the code matches the problem title in snake_case. This ensures that the tests are executed against the correct function.
+
+### AI Assistant Chatbot
+
+The chatbot serves as an AI assistant, providing help related to the user's code. Each time the user makes a request, their code is copied into the prompt and sent to the AI model. This allows the AI to provide context-aware assistance.
+
+### Test Results
+
+When tests are run, the results are also sent in the prompt to the AI model. This provides better context for the AI to offer more accurate and helpful suggestions.
+
+
 ## Tech Stack
 
 ### Frontend
