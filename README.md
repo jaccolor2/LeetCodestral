@@ -31,6 +31,11 @@ The chatbot serves as an AI assistant, providing help related to the user's code
 
 When tests are run, the results are also sent in the prompt to the AI model. This provides better context for the AI to offer more accurate and helpful suggestions.
 
+### Success
+
+If all tests passed, a dialog box appears and suggest to go to the next problem of stay on the current problem.
+PS: for now these two buttons hide the dialog box. I'd like to implement a database to store problems, but haven't managed to know how to practically do it.
+
 
 ## Tech Stack
 
