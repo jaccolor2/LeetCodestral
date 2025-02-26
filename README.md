@@ -36,6 +36,9 @@ When tests are run, the results are also sent in the prompt to the AI model. Thi
 If all tests passed, a dialog box appears and suggests to go to the next problem or stay on the current problem.
 PS: for now these two buttons hide the dialog box. I'd like to implement a database to store problems, but haven't managed to know how to practically do it.
 
+### Moderation
+
+The chatbot uses mistral's moderation api. It the api finds a problem in the user's request, the violation rule tag is sent to the chat api and it returns a streamed response explaining why there was a problem with the question.
 
 ## Tech Stack
 
