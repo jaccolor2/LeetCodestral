@@ -5,6 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { MistralLogo } from '../components/MistralLogo';
 
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');

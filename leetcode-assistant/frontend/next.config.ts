@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   devIndicators: {
     buildActivity: false,
     buildActivityPosition: "bottom-right"
+  },
+  experimental: {
+    disableStaticRouteIndicator: true
   }
 };
 
