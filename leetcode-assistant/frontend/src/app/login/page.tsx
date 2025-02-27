@@ -1,8 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { api } from '../services/api';
+import { MistralLogo } from '../components/MistralLogo';
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,46 +16,49 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     try {
-      if (isLogin) {
-        await api.login(email, password);
-      } else {
-        await api.register(email, password);
-      }
-      setIsLoggedIn(true); // Set login state after successful auth
-      await router.push('/'); // Wait for the navigation
+      const response = await api.auth(email, password, isLogin);
+      localStorage.setItem('token', response.token);
+      setIsLoggedIn(true);
+      router.push('/');
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Authentication failed');
+      setError(error instanceof Error ? error.message : 'An error occurred');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="bg-gray-800 p-8 rounded-lg w-full max-w-md">
-        <h1 className="text-3xl font-bold text-white mb-6 text-center">
-          {isLogin ? 'Welcome Back' : 'Create Account'}
-        </h1>
+    <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center p-4">
+      <div className="bg-[#2D2D2D] p-8 rounded-lg w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="flex flex-col items-center gap-4">
+            <MistralLogo size={48} />
+            <h1 className="text-xl font-bold text-white">LeetCodestral</h1>
+          </div>
+          <p className="text-lg text-white mt-4">
+            {isLogin ? 'Welcome Back' : 'Create Account'}
+          </p>
+        </div>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-200">Email</label>
+            <label className="block text-sm font-medium text-white">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white"
+              className="mt-1 block w-full rounded-md bg-[#1A1A1A] border border-[#2D2D2D] text-white focus:border-[#FF4405] focus:ring-[#FF4405] outline-none"
               required
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-200">Password</label>
+            <label className="block text-sm font-medium text-white">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white"
+              className="mt-1 block w-full rounded-md bg-[#1A1A1A] border border-[#2D2D2D] text-white focus:border-[#FF4405] focus:ring-[#FF4405] outline-none"
               required
             />
           </div>
@@ -63,7 +67,7 @@ export default function LoginPage() {
           
           <button
             type="submit"
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+            className="w-full bg-[#FF4405] text-white py-2 px-4 rounded hover:bg-[#FF4405]/80 transition-colors"
           >
             {isLogin ? 'Login' : 'Register'}
           </button>
@@ -71,7 +75,7 @@ export default function LoginPage() {
         
         <button
           onClick={() => setIsLogin(!isLogin)}
-          className="mt-4 text-sm text-blue-400 hover:text-blue-300 w-full text-center"
+          className="mt-4 text-sm text-[#FF4405] hover:text-[#FF4405]/80 w-full text-center transition-colors"
         >
           {isLogin ? 'Need an account? Register' : 'Have an account? Login'}
         </button>

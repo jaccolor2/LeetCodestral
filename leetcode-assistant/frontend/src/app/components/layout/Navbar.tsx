@@ -1,5 +1,6 @@
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
+import { MistralLogo } from '../MistralLogo';
 
 export function Navbar() {
   const router = useRouter();
@@ -14,7 +15,10 @@ export function Navbar() {
   return (
     <nav className="bg-[#1A1A1A] p-4 border-b border-[#2D2D2D]">
       <div className="container mx-auto flex justify-between items-center relative">
-        <div className="absolute left-1/2 transform -translate-x-1/2 text-xl font-bold text-white">LeetCodestral</div>
+        <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
+          <MistralLogo size={24} />
+          <span className="text-xl font-bold text-white">LeetCodestral</span>
+        </div>
         
         {isLoggedIn && (
           <div className="ml-auto">

@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { LoadingDots } from '../LoadingDots';
 import { Message } from '../../types/chat';
 import { format } from 'date-fns';
+import { MistralLogo } from '../MistralLogo';
 
 interface ChatWindowProps {
   messages: Message[];
@@ -73,12 +74,12 @@ export function ChatWindow({ messages, loading, onSend, setMessages }: ChatWindo
               >
                 <div className={`${
                   message.role === 'assistant'
-                    ? 'bg-[#1A1A1A] text-white w-full'
+                    ? 'bg-[#1A1A1A] text-white w-full flex items-start gap-4'
                     : 'bg-[#2D2D2D] text-white max-w-[60%]'
                 } p-4 rounded-lg`}>
                   {message.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-lg bg-orange-600 flex-shrink-0 flex items-center justify-center text-white">
-                      <span className="text-sm font-medium">M</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#FF4405]/10 flex-shrink-0 flex items-center justify-center">
+                      <MistralLogo size={24} />
                     </div>
                   )}
                   <div className={`${

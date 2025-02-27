@@ -47,10 +47,14 @@ export function TestCaseBox({ problemId, code, onRunTests }: TestCaseBoxProps) {
         {testCases.length > 0 ? (
           <div className="space-y-4">
             {testCases.map((test, index) => (
-              <div key={index} className={`p-4 rounded-lg ${test.passed ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
+              <div key={index} className={`p-4 rounded-lg ${test.passed ? 'bg-green-950/30' : 'bg-red-950/30'}`}>
                 <div className="flex items-center justify-between">
                   <div className="font-medium">{test.description}</div>
-                  <div className={`text-sm ${test.passed ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className={`text-sm font-medium px-2 py-0.5 rounded ${
+                    test.passed 
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-red-500/20 text-red-400'
+                  }`}>
                     {test.passed ? 'Passed' : 'Failed'}
                   </div>
                 </div>

@@ -19,6 +19,10 @@ export interface ChatResponse {
   response: string;
 }
 
+export interface AuthResponse {
+  token: string;
+}
+
 export interface Problem {
   id: number;
   title: string;
@@ -43,6 +47,24 @@ export interface ValidationResponse {
 }
 
 export const api = {
+  async auth(email: string, password: string, isLogin: boolean): Promise<AuthResponse> {
+    const endpoint = isLogin ? 'login' : 'register';
+    const response = await fetch(`${API_BASE_URL}/api/auth/${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Authentication failed');
+    }
+
+    return response.json();
+  },
+
   async chat(
     params: { 
       message: string; 
