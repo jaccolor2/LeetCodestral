@@ -254,30 +254,55 @@ async def chat(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    def generate_stream(response):
-        for line in response.iter_lines():
-            if line:
-                decoded_line = line.decode('utf-8')
-                if decoded_line.startswith("data: "):
-                    try:
-                        json_data = json.loads(decoded_line[6:])
-                        if "choices" in json_data and len(json_data["choices"]) > 0:
-                            content = json_data["choices"][0]["delta"].get("content", "")
-                            if content:
-                                yield json.dumps({
-                                    "role": "assistant",
-                                    "content": content,
-                                    "timestamp": int(time.time() * 1000)
-                                }) + "\n"
-                    except json.JSONDecodeError:
-                        continue
-        yield json.dumps({
-            "role": "assistant",
-            "content": "[DONE]",
-            "timestamp": int(time.time() * 1000)
-        }) + "\n"
-
     try:
+        # Get problem details first
+        problems = await get_problems()
+        if not problems or not problems.get("problems"):
+            # Return a friendly message if problems aren't loaded yet
+            return StreamingResponse(
+                generate_stream(
+                    MockResponse(
+                        "I'm still loading the problem data. Please wait a moment and try again."
+                    )
+                ),
+                media_type="text/event-stream"
+            )
+
+        problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+        if not problem:
+            # Return a friendly message if the specific problem isn't found
+            return StreamingResponse(
+                generate_stream(
+                    MockResponse(
+                        "I couldn't find that problem. Please try refreshing the page."
+                    )
+                ),
+                media_type="text/event-stream"
+            )
+
+        def generate_stream(response):
+            for line in response.iter_lines():
+                if line:
+                    decoded_line = line.decode('utf-8')
+                    if decoded_line.startswith("data: "):
+                        try:
+                            json_data = json.loads(decoded_line[6:])
+                            if "choices" in json_data and len(json_data["choices"]) > 0:
+                                content = json_data["choices"][0]["delta"].get("content", "")
+                                if content:
+                                    yield json.dumps({
+                                        "role": "assistant",
+                                        "content": content,
+                                        "timestamp": int(time.time() * 1000)
+                                    }) + "\n"
+                        except json.JSONDecodeError:
+                            continue
+            yield json.dumps({
+                "role": "assistant",
+                "content": "[DONE]",
+                "timestamp": int(time.time() * 1000)
+            }) + "\n"
+
         # Check moderation first
         is_safe, category, score = await check_moderation(request.message)
         if not is_safe:
@@ -313,15 +338,6 @@ async def chat(
         print(f"History length: {len(request.history)}")
         print(f"Test results: {request.testResults}")
         
-        # Get problem details
-        problems = await get_problems()
-        problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
-        if not problem:
-            return JSONResponse(
-                status_code=404,
-                content={"detail": "Problem not found"}
-            )
-
         headers = {
             "Authorization": f"Bearer {MISTRAL_API_KEY}",
             "Content-Type": "application/json"
@@ -350,10 +366,11 @@ async def chat(
 
         return StreamingResponse(generate_stream(response), media_type="text/event-stream")
     except Exception as e:
+        print(f"Chat error: {e}")  # Add logging
         return JSONResponse(
             status_code=500,
             content={
-                "detail": str(e)
+                "detail": f"An error occurred: {str(e)}"
             }
         )
 
@@ -929,3 +946,17 @@ async def moderate_content(request: ModerationRequest):
             status_code=500,
             detail=f"Moderation check failed: {str(e)}"
         )
+# Add this helper class at the top of the file
+class MockResponse:
+    def __init__(self, message: str):
+        self.message = message
+
+    def iter_lines(self):
+        yield json.dumps({
+            "choices": [{
+                "delta": {
+                    "content": self.message
+                }
+            }]
+        }).encode()
+

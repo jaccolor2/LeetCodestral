@@ -6,7 +6,7 @@ export function useAuth() {
 
   useEffect(() => {
     const checkAuth = () => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       setIsLoggedIn(!!token);
       setIsLoading(false);
     };

@@ -7,7 +7,7 @@ export function Navbar() {
   const { isLoggedIn, setIsLoggedIn } = useAuth();
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
     setIsLoggedIn(false);
     router.push('/login');
   };
@@ -16,7 +16,7 @@ export function Navbar() {
     <nav className="bg-[#1A1A1A] p-4 border-b border-[#2D2D2D]">
       <div className="container mx-auto flex justify-between items-center relative">
         <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
-          <MistralLogo size={24} />
+          <MistralLogo size={24} variant="navbar" />
           <span className="text-xl font-bold text-white">LeetCodestral</span>
         </div>
         

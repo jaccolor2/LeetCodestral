@@ -19,9 +19,14 @@ export default function LoginPage() {
 
     try {
       const response = await api.auth(email, password, isLogin);
-      localStorage.setItem('access_token', response.access_token);
-      setIsLoggedIn(true);
-      router.push('/');
+      if (response.access_token) {
+        localStorage.setItem('access_token', response.access_token);
+        setIsLoggedIn(true);
+        router.push('/');
+        router.refresh();
+      } else {
+        setError('Authentication failed');
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred');
     }

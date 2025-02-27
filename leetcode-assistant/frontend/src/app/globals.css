@@ -111,3 +111,8 @@ body {
 .scrollbar-thin:hover::-webkit-scrollbar-thumb {
   opacity: 1;
 }
+
+.logo-zoom {
+  transform: scale(1.2);
+  border-radius: 8px; /* Adjust this value to control how round the corners are */
+}

@@ -79,7 +79,7 @@ export function ChatWindow({ messages, loading, onSend, setMessages }: ChatWindo
                 } p-4 rounded-lg`}>
                   {message.role === 'assistant' && (
                     <div className="w-8 h-8 rounded-lg bg-[#FF4405]/10 flex-shrink-0 flex items-center justify-center">
-                      <MistralLogo size={24} />
+                      <MistralLogo size={50} />
                     </div>
                   )}
                   <div className={`${
