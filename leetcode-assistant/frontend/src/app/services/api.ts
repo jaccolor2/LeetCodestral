@@ -20,7 +20,7 @@ export interface ChatResponse {
 }
 
 export interface AuthResponse {
-  token: string;
+  access_token: string;
 }
 
 export interface Problem {
@@ -48,21 +48,11 @@ export interface ValidationResponse {
 
 export const api = {
   async auth(email: string, password: string, isLogin: boolean): Promise<AuthResponse> {
-    const endpoint = isLogin ? 'login' : 'register';
-    const response = await fetch(`${API_BASE_URL}/api/auth/${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Authentication failed');
+    if (isLogin) {
+      return this.login(email, password);
+    } else {
+      return this.register(email, password);
     }
-
-    return response.json();
   },
 
   async chat(
@@ -80,7 +70,7 @@ export const api = {
     },
     onChunk: (chunk: string) => void
   ) {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     if (!token) throw new Error('Not authenticated');
 
     // Add debug logs
@@ -265,7 +255,7 @@ export const api = {
     }
 
     const data = await response.json();
-    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('access_token', data.access_token);
     return data;
   },
 
@@ -284,7 +274,7 @@ export const api = {
     }
     
     const data = await response.json();
-    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('access_token', data.access_token);
     return data;
   },
 };

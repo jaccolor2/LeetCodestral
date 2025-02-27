@@ -19,7 +19,7 @@ export default function LoginPage() {
 
     try {
       const response = await api.auth(email, password, isLogin);
-      localStorage.setItem('token', response.token);
+      localStorage.setItem('access_token', response.access_token);
       setIsLoggedIn(true);
       router.push('/');
     } catch (error) {
@@ -29,7 +29,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center p-4">
-      <div className="bg-[#2D2D2D] p-8 rounded-lg w-full max-w-md">
+      <div className="bg-[#2D2D2D] p-8 rounded-lg w-full max-w-md shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-white/10">
         <div className="text-center mb-8">
           <div className="flex flex-col items-center gap-4">
             <MistralLogo size={48} />
@@ -47,7 +47,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md bg-[#1A1A1A] border border-[#2D2D2D] text-white focus:border-[#FF4405] focus:ring-[#FF4405] outline-none"
+              className="mt-1 block w-full rounded-md bg-black border border-gray-800 text-white placeholder-gray-600 focus:border-[#FF4405] focus:ring-[#FF4405] outline-none px-3 py-2"
               required
             />
           </div>
@@ -58,7 +58,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md bg-[#1A1A1A] border border-[#2D2D2D] text-white focus:border-[#FF4405] focus:ring-[#FF4405] outline-none"
+              className="mt-1 block w-full rounded-md bg-black border border-gray-800 text-white placeholder-gray-600 focus:border-[#FF4405] focus:ring-[#FF4405] outline-none px-3 py-2"
               required
             />
           </div>

@@ -22,17 +22,30 @@ export function useChat() {
   const handleAskQuestion = async (
     question: string, 
     code: string,
+    problemId: number | null,
     testResults?: Array<{ passed: boolean; output: string; expected: string; error?: string }>
   ) => {
     if (!question.trim()) return;
     
     const loadingId = Date.now();
+    setMessages(prev => [...prev, 
+      { role: 'user', content: question }
+    ]);
+
+    if (!problemId) {
+      setMessages(prev => [...prev,
+        { 
+          role: 'assistant', 
+          content: 'Please wait while the problem loads...',
+          id: loadingId
+        }
+      ]);
+      return;
+    }
     
     try {
       setLoading(true);
-      
-      setMessages(prev => [...prev, 
-        { role: 'user', content: question },
+      setMessages(prev => [...prev.filter(msg => msg.id !== loadingId),
         { role: 'assistant', content: '', id: loadingId }
       ]);
       
@@ -41,7 +54,7 @@ export function useChat() {
         {
           message: question,
           code: code,
-          problem_id: 1,
+          problem_id: problemId,
           history: messages.map(msg => ({
             role: msg.role,
             content: msg.content
@@ -60,12 +73,11 @@ export function useChat() {
       );
     } catch (error) {
       console.error('Error:', error);
-      // Remove the loading message and show error
       setMessages(prev => [
         ...prev.filter(msg => msg.id !== loadingId),
         { 
           role: 'assistant', 
-          content: error instanceof Error ? error.message : 'Error occurred while fetching response',
+          content: 'Sorry, there was an error. Please try again in a moment.',
           timestamp: Date.now()
         }
       ]);

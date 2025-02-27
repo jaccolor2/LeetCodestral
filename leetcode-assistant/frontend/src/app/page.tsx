@@ -139,7 +139,7 @@ export default function Home() {
         <ChatWindow
           messages={messages}
           loading={loading}
-          onSend={(question) => handleAskQuestion(question, code, testResults)}
+          onSend={(question) => handleAskQuestion(question, code, currentProblem?.id || null, testResults)}
           setMessages={setMessages}
         />
       }
@@ -163,7 +163,7 @@ export default function Home() {
                 </button>
                 <button
                   onClick={handleKeepImproving}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-lg transition-colors"
+                  className="flex-1 bg-[#FF4405] hover:bg-[#FF4405]/80 text-white px-6 py-3 rounded-lg text-lg transition-colors"
                 >
                   Keep Improving
                 </button>
