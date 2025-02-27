@@ -1,6 +1,6 @@
 import { Navbar } from './Navbar';
 import { useAuth } from '../../hooks/useAuth';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, PanelGroup } from 'react-resizable-panels';
 
 interface MainLayoutProps {
   leftPanel: React.ReactNode;
@@ -29,25 +29,26 @@ export function MainLayout({
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[var(--background)]">
-      <Navbar />
+      <div className="shadow-[0_4px_20px_rgba(0,0,0,0.4)] z-10">
+        <Navbar />
+      </div>
       {isLoggedIn ? (
         <main className="flex-1 relative">
           <div className="absolute inset-0">
             <PanelGroup direction="horizontal" className="h-full">
               {isLeftPanelVisible && (
-                <>
-                  <Panel 
-                    defaultSize={20} 
-                    minSize={20} 
-                    maxSize={20}
-                    className="bg-[var(--secondary)]"
-                  >
-                    <div className="h-full overflow-auto p-4">
+                <Panel 
+                  defaultSize={20} 
+                  minSize={20} 
+                  maxSize={20}
+                  className="bg-[var(--secondary)]"
+                >
+                  <div className="h-full overflow-auto p-4">
+                    <div className="h-full rounded-lg overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-white/10">
                       {leftPanel}
                     </div>
-                  </Panel>
-                  <PanelResizeHandle className="w-2 bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors" />
-                </>
+                  </div>
+                </Panel>
               )}
               
               <Panel 
@@ -57,11 +58,11 @@ export function MainLayout({
                 className="bg-[var(--secondary)]"
               >
                 <div className="h-full overflow-auto p-4">
-                  {centerPanel}
+                  <div className="h-full rounded-lg overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-gray-800">
+                    {centerPanel}
+                  </div>
                 </div>
               </Panel>
-              
-              <PanelResizeHandle className="w-2 bg-[var(--secondary)] hover:bg-[var(--accent)] transition-colors" />
               
               <Panel 
                 defaultSize={30} 
@@ -70,7 +71,9 @@ export function MainLayout({
                 className="bg-[var(--secondary)]"
               >
                 <div className="h-full overflow-auto p-4">
-                  {rightPanel}
+                  <div className="h-full rounded-lg overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-gray-800">
+                    {rightPanel}
+                  </div>
                 </div>
               </Panel>
             </PanelGroup>
