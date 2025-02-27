@@ -2,15 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide Next.js route announcer */
+#__next-route-announcer__ {
+  display: none !important;
+}
+
+/* Add this to hide the static route icon */
+[data-nextjs-route-announcer],
+[data-next-route-announcer] {
+  display: none !important;
+}
+
 :root {
+  /* Light theme */
   --background: #ffffff;
   --foreground: #171717;
+  --accent: #FF4405;
+  --secondary: #2D2D2D;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #1A1A1A;
+    --foreground: #FFFFFF;
+    --accent: #FF4405;
+    --secondary: #2D2D2D;
   }
 }
 
@@ -26,7 +42,7 @@ body {
 }
 
 .scrollbar-custom::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: var(--secondary);
   border-radius: 4px;
 }
 
@@ -37,13 +53,13 @@ body {
 }
 
 .scrollbar-custom::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: var(--accent);
 }
 
 /* Firefox */
 .scrollbar-custom {
   scrollbar-width: thin;
-  scrollbar-color: #4b5563 #1f2937;
+  scrollbar-color: #4b5563 var(--secondary);
 }
 
 /* Resize Handle Styles */
@@ -74,7 +90,7 @@ body {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--accent);
 }
 
 /* Firefox */

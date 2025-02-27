@@ -1,8 +1,22 @@
 import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, Key } from 'react';
 import { TestCaseBox } from './TestCaseBox';
 
+interface Example {
+  input: string;
+  output?: string;
+  expected_output?: string;
+  explanation?: string;
+}
+
 interface ProblemDescriptionProps {
-  problem: any;
+  problem: {
+    id: number;
+    title: string;
+    description: string;
+    difficulty: string;
+    constraints?: string[];
+    examples: Example[];
+  } | null;
   code: string;
   onRunTests: () => Promise<any>;
 }
@@ -13,9 +27,9 @@ export function ProblemDescription({ problem, code, onRunTests }: ProblemDescrip
   }
 
   const difficultyColor = {
-    easy: 'bg-green-500',
-    medium: 'bg-yellow-500',
-    hard: 'bg-red-500'
+    easy: 'bg-[#FF4405]/30',
+    medium: 'bg-[#FF4405]/60',
+    hard: 'bg-[#FF4405]'
   } as const;
 
   return (
@@ -41,18 +55,18 @@ export function ProblemDescription({ problem, code, onRunTests }: ProblemDescrip
           </div>
         )}
 
-        {problem.examples.map((example: { input: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; expected_output: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; explanation: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }, index: number) => (
-          <div key={index} className="mt-6 p-4 bg-gray-700 rounded-lg">
+        {problem.examples.map((example: Example, index: number) => (
+          <div key={index} className="mt-6 p-4 bg-[#FF4405]/10 rounded-lg">
             <h3 className="font-semibold mb-2">Example {index + 1}</h3>
             <div className="space-y-2">
               <div>
                 <span className="font-medium">Input:</span>
-                <pre className="bg-gray-800 p-2 rounded mt-1 text-white">{example.input}</pre>
+                <pre className="bg-[#1A1A1A] p-2 rounded mt-1 text-white">{example.input}</pre>
               </div>
               <div>
                 <span className="font-medium">Output:</span>
-                <pre className="bg-gray-800 p-2 rounded mt-1 text-white">
-                  {example.expected_output}
+                <pre className="bg-[#1A1A1A] p-2 rounded mt-1 text-white">
+                  {example.expected_output || example.output}
                 </pre>
               </div>
               {example.explanation && (

@@ -37,7 +37,7 @@ export function TestCaseBox({ problemId, code, onRunTests }: TestCaseBoxProps) {
         <button
           onClick={handleRunTests}
           disabled={loading}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-[#FF4405] hover:bg-[#FF4405]/80 text-white px-4 py-2 rounded disabled:opacity-50"
         >
           {loading ? 'Running Tests...' : 'Run Tests'}
         </button>

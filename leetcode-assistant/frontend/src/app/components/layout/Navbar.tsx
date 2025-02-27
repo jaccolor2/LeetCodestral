@@ -12,17 +12,19 @@ export function Navbar() {
   };
 
   return (
-    <nav className="bg-gray-800 text-white p-4 border-b border-gray-700">
-      <div className="container mx-auto flex justify-between items-center">
-        <div className="text-xl font-bold">LeetCode Assistant</div>
+    <nav className="bg-[#1A1A1A] p-4 border-b border-[#2D2D2D]">
+      <div className="container mx-auto flex justify-between items-center relative">
+        <div className="absolute left-1/2 transform -translate-x-1/2 text-xl font-bold text-white">LeetCodestral</div>
         
         {isLoggedIn && (
-          <button
-            onClick={handleLogout}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-          >
-            Logout
-          </button>
+          <div className="ml-auto">
+            <button
+              onClick={handleLogout}
+              className="bg-[#FF4405] text-white px-4 py-2 rounded hover:opacity-90"
+            >
+              Logout
+            </button>
+          </div>
         )}
       </div>
     </nav>

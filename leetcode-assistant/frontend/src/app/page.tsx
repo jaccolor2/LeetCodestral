@@ -144,10 +144,6 @@ export default function Home() {
         />
       }
     >
-      <div className="fixed top-0 left-0 bg-black bg-opacity-50 p-2 text-white text-xs">
-        Modal should show: {String(showSuccessModal && validationResult?.classification === 'CORRECT')}
-      </div>
-
       {showSuccessModal && validationResult && validationResult.classification === 'CORRECT' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center">
           <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl border-2 border-green-400">
@@ -180,7 +176,7 @@ export default function Home() {
       <div className="flex flex-col gap-4">
         <button 
           onClick={handleRunTests}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          className="bg-[#FF4405] hover:bg-[#FF4405]/80 text-white px-4 py-2 rounded"
         >
           Run Tests
         </button>
