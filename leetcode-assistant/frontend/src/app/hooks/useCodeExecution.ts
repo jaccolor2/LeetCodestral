@@ -27,11 +27,11 @@ export function useCodeExecution() {
     }
   }, [code]);
 
-  const runCode = async () => {
+  const runCode = async (language: string) => {
     setIsRunning(true);
     setOutput('Running code...');
     try {
-      const result: ExecutionResult = await api.execute(code);
+      const result: ExecutionResult = await api.execute(code, language);
       
       // Format the output combining stdout, stderr and error if they exist
       const formattedOutput = [

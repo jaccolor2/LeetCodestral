@@ -67,6 +67,7 @@ class ChatResponse(BaseModel):
 
 class CodeExecutionRequest(BaseModel):
     code: str
+    language: str  # Add language field
 
 class CodeEvaluator:
     def __init__(self, problem):
@@ -377,26 +378,35 @@ async def chat(
 @app.post("/api/execute")
 async def execute_code(request: CodeExecutionRequest):
     try:
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        # Create a temporary file with the appropriate extension
+        suffix = '.js' if request.language == 'javascript' else '.py'
+        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as f:
             f.write(request.code)
             temp_file_path = f.name
 
         try:
             # Run the code with a timeout
-            process = subprocess.run(
-                ['python', temp_file_path],
-                capture_output=True,
-                text=True,
-                timeout=5  # 5 second timeout
-            )
-            
+            if request.language == 'javascript':
+                process = subprocess.run(
+                    ['node', temp_file_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=5  # 5 second timeout
+                )
+            else:  # Default to Python
+                process = subprocess.run(
+                    ['python', temp_file_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=5  # 5 second timeout
+                )
+
             return {
                 "stdout": process.stdout,
                 "stderr": process.stderr,
                 "error": None
             }
-            
+
         except subprocess.TimeoutExpired:
             return {
                 "stdout": "",
@@ -413,7 +423,7 @@ async def execute_code(request: CodeExecutionRequest):
             # Clean up the temporary file
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
-                
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

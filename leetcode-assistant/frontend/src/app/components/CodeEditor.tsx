@@ -5,7 +5,7 @@ import { ValidationResponse } from '../types/api';
 interface CodeEditorProps {
   code: string;
   onChange: (value: string) => void;
-  onRun: () => Promise<any>;
+  onRun: (language: string) => Promise<any>;
   isRunning: boolean;
   output: string;
   onValidate?: (code: string, problemId: number) => Promise<ValidationResponse>;
@@ -20,6 +20,24 @@ export function CodeEditor({
   output 
 }: CodeEditorProps) {
   const [language, setLanguage] = useState('python');
+  const [pythonCode, setPythonCode] = useState('');
+  const [javascriptCode, setJavascriptCode] = useState('');
+
+  const handleLanguageChange = (newLanguage: string) => {
+    if (language === 'python') {
+      setPythonCode(code);
+    } else if (language === 'javascript') {
+      setJavascriptCode(code);
+    }
+
+    setLanguage(newLanguage);
+
+    if (newLanguage === 'python') {
+      onChange(pythonCode);
+    } else if (newLanguage === 'javascript') {
+      onChange(javascriptCode);
+    }
+  };
 
   return (
     <>
@@ -29,18 +47,16 @@ export function CodeEditor({
         <div className="flex-none flex justify-between items-center p-2 bg-[#1A1A1A]">
           <select
             value={language}
-            onChange={(e) => setLanguage(e.target.value)}
+            onChange={(e) => handleLanguageChange(e.target.value)}
             className="bg-[#2D2D2D] text-white px-2 py-1 rounded-md text-sm"
           >
             <option value="python">Python</option>
             <option value="javascript">JavaScript</option>
-            <option value="java">Java</option>
-            <option value="cpp">C++</option>
           </select>
           
           <div className="flex gap-2">
             <button
-              onClick={onRun}
+              onClick={() => onRun(language)}
               disabled={isRunning}
               className="bg-[#FF4405] hover:bg-[#FF4405]/80 text-white px-4 py-1 rounded-md text-sm disabled:bg-gray-600"
             >
