@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Response, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 import os
 import requests
 from dotenv import load_dotenv
@@ -47,6 +47,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+# Add after other global variables
+PROBLEM_TITLE_CACHE: Set[str] = set()
+
 class TestResult(BaseModel):
     description: str
     input: str
@@ -61,6 +64,7 @@ class ChatRequest(BaseModel):
     problem_id: int
     history: List[dict] = []
     testResults: Optional[List[TestResult]] = None
+    problem: Optional[dict] = None  # Add current problem to request
 
 class ChatResponse(BaseModel):
     response: str
@@ -256,30 +260,30 @@ async def chat(
     db: Session = Depends(get_db)
 ):
     try:
-        # Get problem details first
-        problems = await get_problems()
-        if not problems or not problems.get("problems"):
-            # Return a friendly message if problems aren't loaded yet
-            return StreamingResponse(
-                generate_stream(
-                    MockResponse(
-                        "I'm still loading the problem data. Please wait a moment and try again."
-                    )
-                ),
-                media_type="text/event-stream"
-            )
-
-        problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+        # Use the provided problem if available
+        problem = request.problem
         if not problem:
-            # Return a friendly message if the specific problem isn't found
-            return StreamingResponse(
-                generate_stream(
-                    MockResponse(
-                        "I couldn't find that problem. Please try refreshing the page."
-                    )
-                ),
-                media_type="text/event-stream"
-            )
+            # Fallback to fetching problem if not provided
+            problems = await get_problems()
+            if not problems or not problems.get("problems"):
+                return StreamingResponse(
+                    generate_stream(
+                        MockResponse(
+                            "I'm still loading the problem data. Please wait a moment and try again."
+                        )
+                    ),
+                    media_type="text/event-stream"
+                )
+            problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+            if not problem:
+                return StreamingResponse(
+                    generate_stream(
+                        MockResponse(
+                            "I couldn't find that problem. Please try refreshing the page."
+                        )
+                    ),
+                    media_type="text/event-stream"
+                )
 
         def generate_stream(response):
             for line in response.iter_lines():
@@ -303,34 +307,6 @@ async def chat(
                 "content": "[DONE]",
                 "timestamp": int(time.time() * 1000)
             }) + "\n"
-
-        # Check moderation first
-        is_safe, category, score = await check_moderation(request.message)
-        if not is_safe:
-            data = await generate_moderation_response(category, score)
-            if not data:
-                return JSONResponse(
-                    status_code=500,
-                    content={"detail": "Failed to generate moderation response"}
-                )
-
-            response = requests.post(
-                MISTRAL_API_URL,
-                headers={
-                    "Authorization": f"Bearer {MISTRAL_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json=data,
-                stream=True
-            )
-
-            if response.status_code != 200:
-                return JSONResponse(
-                    status_code=response.status_code,
-                    content={"detail": f"Mistral API returned {response.status_code}: {response.text}"}
-                )
-
-            return StreamingResponse(generate_stream(response), media_type="text/event-stream")
 
         # Add debug logs
         print("Received chat request:")
@@ -573,10 +549,12 @@ async def validate_code(request: CodeValidationRequest):
 @app.get("/api/problems")
 async def get_problems():
     try:
-        # Create problem generation prompt
+        # Create problem generation prompt with cached titles
         prompt = load_prompt("problem_generation")
+        if PROBLEM_TITLE_CACHE:
+            prompt += f"\n\nAvoid these already used titles: {', '.join(PROBLEM_TITLE_CACHE)}"
         
-        # Make request to Mistral API
+        # Make request to Mistral API with higher temperature for variety
         response = requests.post(
             MISTRAL_API_URL,
             headers={
@@ -585,7 +563,7 @@ async def get_problems():
             },
             json={
                 "model": "mistral-large-latest",
-                "temperature": 0.0,
+                "temperature": 0.7,  # Increased temperature for more variety
                 "messages": [
                     {
                         "role": "user",
@@ -600,6 +578,10 @@ async def get_problems():
 
         problem_json = response.json()["choices"][0]["message"]["content"]
         problem = json.loads(problem_json)
+        
+        # Add the new problem title to cache
+        PROBLEM_TITLE_CACHE.add(problem['title'])
+        
         print("problem:>>>\n", problem, "\n<<<end")
         
         # Return the generated problem in the expected format

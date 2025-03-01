@@ -13,6 +13,7 @@ export interface ChatRequest {
     expected: string;
     error?: string;
   }>;
+  problem?: any;
 }
 
 export interface ChatResponse {
@@ -55,90 +56,46 @@ export const api = {
     }
   },
 
-  async chat(
-    params: { 
-      message: string; 
-      code: string; 
-      problem_id: number; 
-      history: Array<{ role: string; content: string }>;
-      testResults?: Array<{
-        passed: boolean;
-        output: string;
-        expected: string;
-        error?: string;
-      }>;
-    },
-    onChunk: (chunk: string) => void
-  ) {
+  async chat(request: ChatRequest, onMessage?: (message: string) => void): Promise<void> {
     const token = localStorage.getItem('access_token');
-    if (!token) throw new Error('Not authenticated');
-
-    // Add debug logs
-    console.log('Sending chat request:', {
-      message: params.message,
-      code: params.code.slice(0, 100) + '...', // Truncate code for readability
-      history: params.history,
-      testResults: params.testResults
-    });
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
 
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(params)
+      body: JSON.stringify(request)
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error('Failed to send message');
     }
 
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error('No reader available');
+      throw new Error('No response body');
     }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        
-        // Keep the last partial line in the buffer
-        buffer = lines.pop() || '';
+        const text = new TextDecoder().decode(value);
+        const lines = text.split('\n').filter(Boolean);
 
         for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-          
           try {
-            const chunk = JSON.parse(trimmedLine);
-            if (chunk.content === '[DONE]') {
-              return;
-            }
-            onChunk(chunk.content);
+            const data = JSON.parse(line);
+            if (data.content === '[DONE]') break;
+            onMessage?.(data.content);
           } catch (e) {
-            console.error('Error parsing chunk:', trimmedLine);
+            console.error('Error parsing chat response:', e);
           }
-        }
-      }
-      
-      // Handle any remaining data in the buffer
-      if (buffer) {
-        try {
-          const chunk = JSON.parse(buffer);
-          if (chunk.content !== '[DONE]') {
-            onChunk(chunk.content);
-          }
-        } catch (e) {
-          console.error('Error parsing final chunk:', buffer);
         }
       }
     } finally {

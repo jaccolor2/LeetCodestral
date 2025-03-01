@@ -21,7 +21,7 @@ export default function Home() {
   // Feature hooks
   const { messages, loading, handleAskQuestion, setMessages } = useChat();
   const { code, setCode, runCode, isRunning, output } = useCodeExecution();
-  const { currentProblem, validate, validating } = useProblem();
+  const { currentProblem, validate, validating, setCurrentProblem, fetchNewProblem } = useProblem();
 
   // State hooks
   const [isProblemPanelVisible, setIsProblemPanelVisible] = useState(true);
@@ -105,9 +105,21 @@ export default function Home() {
     }
   };
 
-  const handleSkip = () => {
-    setShowSuccessModal(false);
-    setValidationResult(null);
+  const handleSkip = async () => {
+    try {
+      // Use the fetchNewProblem function from the hook with force=true
+      const newProblem = await fetchNewProblem(true);
+      if (newProblem) {
+        // Clear current state
+        setShowSuccessModal(false);
+        setValidationResult(null);
+        setTestResults([]);
+        setCode(''); // Clear the code editor
+        setMessages([]); // Clear chat messages
+      }
+    } catch (error) {
+      console.error('Error fetching next problem:', error);
+    }
   };
 
   const handleKeepImproving = () => {
@@ -139,7 +151,7 @@ export default function Home() {
         <ChatWindow
           messages={messages}
           loading={loading}
-          onSend={(question) => handleAskQuestion(question, code, currentProblem?.id || null, testResults)}
+          onSend={(question) => handleAskQuestion(question, code, currentProblem?.id || null, testResults, currentProblem)}
           setMessages={setMessages}
         />
       }

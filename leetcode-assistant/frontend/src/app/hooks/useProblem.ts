@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 import { Problem } from '../types/problem';
 
@@ -7,30 +7,37 @@ export function useProblem() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
+  const initialLoadDone = useRef(false);
 
-  useEffect(() => {
-    const fetchProblem = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('http://localhost:8000/api/problems');
-        const data = await response.json();
-        
-        if (data.problems && data.problems.length > 0) {
-          setCurrentProblem(data.problems[0]);
-          setError(null);
-        } else {
-          setError('No problems found');
-        }
-      } catch (err) {
-        setError('Failed to fetch problem');
-        console.error('Error fetching problem:', err);
-      } finally {
-        setLoading(false);
+  const fetchNewProblem = useCallback(async (force: boolean = false) => {
+    try {
+      setLoading(true);
+      const response = await api.getProblems();
+      
+      if (response.problems && response.problems.length > 0) {
+        setCurrentProblem(response.problems[0]);
+        setError(null);
+        return response.problems[0];
+      } else {
+        setError('No problems found');
+        return null;
       }
-    };
-
-    fetchProblem();
+    } catch (err) {
+      setError('Failed to fetch problem');
+      console.error('Error fetching problem:', err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Only fetch on initial mount
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      fetchNewProblem();
+    }
+  }, [fetchNewProblem]);
 
   const validate = async (code: string, problemId: number) => {
     setValidating(true);
@@ -43,6 +50,8 @@ export function useProblem() {
 
   return { 
     currentProblem, 
+    setCurrentProblem,
+    fetchNewProblem,
     validate, 
     validating,
     loading,
