@@ -1,4 +1,4 @@
-Given this Python function and problem description, generate 3 test cases that thoroughly test the solution.
+Given this {language} function and problem description, generate 3 test cases that thoroughly test the solution.
 
 Problem Description: {problem_description}
 Solution Code:
@@ -9,11 +9,16 @@ Requirements:
    - Normal cases
    - Edge cases
    - Common error scenarios
-2. Make sure test cases are valid Python expressions
+2. Make sure test cases are valid {language} expressions
 3. Ensure inputs match the function parameters
 4. Expected outputs should match the function return type
 
-example output (with ".." and "n" being respectively the inputs and function parameters):
+example output for Python:
 {{
   "python_code": "def test_{function_name}():\\n    try:\\n        # Test case n: Description\\n        result = {function_name}([.., .., .., ..], ..)\\n        expected = [.., ..]\\n        print(f\\"Test case n: {{' Passed' if result == expected else ' Failed'}}\\")\n        print(f\\"  Input: nums=[.., .., .., ..], target=..\\")\n        print(f\\"  Expected: {{expected}}\\")\n        print(f\\"  Got: {{result}}\\")\n        assert result == expected\\n\\n        print(\\"\\\\nAll tests passed!\\")\n    except AssertionError as e:\\n        print(f\\"\\\\nTest failed: {{e}}\\")"
+}}
+
+example output for JavaScript:
+{{
+  "javascript_code": "function test_{function_name}() {{\\n    try {{\\n        // Test case n: Description\\n        const result = {function_name}([.., .., .., ..], ..);\\n        const expected = [.., ..];\\n        console.log(`Test case n: ${{JSON.stringify(result) === JSON.stringify(expected) ? ' Passed' : ' Failed'}}`);\\n        console.log(`  Input: nums=[.., .., .., ..], target=..`);\\n        console.log(`  Expected: ${{JSON.stringify(expected)}}`);\\n        console.log(`  Got: ${{JSON.stringify(result)}}`);\\n        if (JSON.stringify(result) !== JSON.stringify(expected)) throw new Error('Test failed');\\n    }} catch (e) {{\\n        console.log(`\\\\nTest failed: ${{e.message}}`);\\n    }}\\n}}\\n\\ntest_{function_name}();"
 }}

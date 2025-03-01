@@ -666,25 +666,16 @@ async def generate_tests(request: GenerateTestsRequest, problem=None):
             if not problem:
                 raise HTTPException(status_code=404, detail="Problem not found")
 
-        # Compare both prompts after formatting
-        file_prompt = load_prompt("test_generation").format(
+        # Detect language based on code content
+        language = "javascript" if "function" in request.code else "python"
+        
+        # Format the test generation prompt with language
+        test_prompt = load_prompt("test_generation").format(
+            language=language,
             problem_description=problem['description'],
             function_name=problem['functionName'],
             solution_code=request.code
         )
-        
-        hardcoded_prompt = TEST_GENERATION_PROMPT.format(
-            problem_description=problem['description'],
-            function_name=problem['functionName'],
-            solution_code=request.code
-        )
-        
-        print("File prompt after formatting:>>>\n", file_prompt, "\n<<<end")
-        print("Hardcoded prompt after formatting:>>>\n", hardcoded_prompt, "\n<<<end")
-        print("Are they different?", file_prompt != hardcoded_prompt)
-        
-        # Continue with the original code using file_prompt
-        test_prompt = file_prompt
 
         # Make request to Mistral API
         response = requests.post(
@@ -699,7 +690,7 @@ async def generate_tests(request: GenerateTestsRequest, problem=None):
                 "messages": [
                     {
                         "role": "user",
-                        "content": "You are a Python test case generator. Generate test cases with VALID PYTHON SYNTAX. Also you should give the python code in a json object with the following format: { \"python_code\": pythoncode}"
+                        "content": "You are a Python and JavaScript test case generator. Generate test cases with VALID SYNTAX for the specified language. Also you should give the code in a json object with the following format: { \"python_code\": pythoncode } or { \"javascript_code\": jscode }"
                     },
                     {
                         "role": "user",
@@ -736,28 +727,41 @@ async def run_tests(request: GenerateTestsRequest):
         print("\nTest Cases:")
         print(test_cases)
 
-        # Create a StringIO to capture print output
-        output_buffer = StringIO()
-        sys.stdout = output_buffer
+        # Create a temporary file with the appropriate extension and content
+        language = "javascript" if "function" in request.code else "python"
+        suffix = '.js' if language == 'javascript' else '.py'
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as f:
+            # Write the solution code first
+            f.write(request.code + "\n\n")
+            
+            # Write the test code
+            if language == "javascript":
+                f.write(test_cases.get("javascript_code", ""))
+            else:
+                f.write(test_cases.get("python_code", ""))
+            
+            temp_file_path = f.name
 
         try:
-            # Execute the test code using the function name from the problem
-            exec_code = f"""
-{request.code}
+            # Execute the code with a timeout
+            if language == "javascript":
+                process = subprocess.run(
+                    ['node', temp_file_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+            else:
+                process = subprocess.run(
+                    ['python', temp_file_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
 
-{test_cases['python_code']}
-
-# Run the tests
-test_{problem['functionName']}()
-"""
-            namespace = {}
-            exec(exec_code, namespace)
-            
-            # Get the captured output
-            output = output_buffer.getvalue()
-            
             # Parse the output to get test results
-            output_lines = output.strip().split('\n')
+            output_lines = process.stdout.strip().split('\n')
             results = []
             current_test = {}
             
@@ -778,7 +782,7 @@ test_{problem['functionName']}()
             
             if current_test:
                 results.append(current_test)
-                
+
             # After getting the test results, check if all tests passed
             all_tests_passed = all(result.get("passed", False) for result in results)
             
@@ -793,7 +797,6 @@ test_{problem['functionName']}()
                     validation_result = await validate(validation_request)
                 except Exception as e:
                     print(f"Validation error: {e}")
-                    # Don't fail the whole request if validation fails
                     pass
 
             return {
@@ -801,9 +804,30 @@ test_{problem['functionName']}()
                 "validation": validation_result.dict() if validation_result else None
             }
 
+        except subprocess.TimeoutExpired:
+            return {
+                "results": [{
+                    "description": "Test execution",
+                    "passed": False,
+                    "input": "N/A",
+                    "expected_output": "N/A",
+                    "output": "Code execution timed out after 5 seconds"
+                }]
+            }
+        except Exception as e:
+            return {
+                "results": [{
+                    "description": "Test execution",
+                    "passed": False,
+                    "input": "N/A",
+                    "expected_output": "N/A",
+                    "output": str(e)
+                }]
+            }
         finally:
-            # Restore stdout
-            sys.stdout = sys.__stdout__
+            # Clean up the temporary file
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
 
     except Exception as e:
         print(f"Error: {e}")
