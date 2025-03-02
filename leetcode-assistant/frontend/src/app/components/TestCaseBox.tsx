@@ -21,6 +21,18 @@ export function TestCaseBox({ problemId, code, onRunTests }: TestCaseBoxProps) {
   const handleRunTests = async () => {
     setLoading(true);
     try {
+      // Check if code is empty
+      if (!code || code.trim() === '') {
+        setTestCases([{
+          description: "Test execution",
+          passed: false,
+          input: "N/A",
+          expected_output: "N/A",
+          output: "No code provided. Please write some code before running tests."
+        }]);
+        return;
+      }
+      
       const response = await onRunTests();
       setTestCases(response.results);
     } catch (error) {

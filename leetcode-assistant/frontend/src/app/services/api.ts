@@ -139,16 +139,16 @@ export const api = {
     return response.json();
   },
 
-  validate: async (code: string, problemId: number): Promise<ValidationResponse> => {
+  validate: async (code: string, problemId: number, problem?: any): Promise<ValidationResponse> => {
     try {
-      console.log('Sending validation request:', { code, problemId }); // Debug log
+      console.log('Sending validation request:', { code, problemId, problem }); // Debug log
 
       const response = await fetch(`${API_BASE_URL}/api/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code, problem_id: problemId }),
+        body: JSON.stringify({ code, problem_id: problemId, problem }),
       });
 
       const contentType = response.headers.get('content-type');
@@ -187,11 +187,11 @@ export const api = {
       body: JSON.stringify({ code, problem_id: problemId })
     }).then(res => res.json()),
     
-  runTests: async (code: string, problemId: number) => {
+  runTests: async (code: string, problemId: number, problem?: any) => {
     const response = await fetch(`${API_BASE_URL}/api/run-tests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, problem_id: problemId })
+      body: JSON.stringify({ code, problem_id: problemId, problem })
     });
     const data = await response.json();
     console.log('API Response:', data);  // Debug log

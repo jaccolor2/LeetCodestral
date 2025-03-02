@@ -72,9 +72,22 @@ export default function Home() {
       return { results: [] };
     }
     
+    // Check if code is empty
+    if (!code || code.trim() === '') {
+      console.error('No code provided');
+      setTestResults([{
+        description: "Test execution",
+        passed: false,
+        input: "N/A",
+        expected_output: "N/A",
+        output: "No code provided. Please write some code before running tests."
+      }]);
+      return { results: [] };
+    }
+    
     try {
       console.log('Running tests with code:', code);
-      const response = await api.runTests(code, currentProblem.id);
+      const response = await api.runTests(code, currentProblem.id, currentProblem);
       console.log('Full API response:', response);
       setTestResults(response.results);
 

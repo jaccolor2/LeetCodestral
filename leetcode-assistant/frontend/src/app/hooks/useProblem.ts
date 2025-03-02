@@ -42,7 +42,7 @@ export function useProblem() {
   const validate = async (code: string, problemId: number) => {
     setValidating(true);
     try {
-      return await api.validate(code, problemId);
+      return await api.validate(code, problemId, currentProblem);
     } finally {
       setValidating(false);
     }

@@ -485,81 +485,6 @@ class CodeValidationRequest(BaseModel):
     code: str
     problem_id: int
 
-@app.post("/api/validate")
-async def validate_code(request: CodeValidationRequest):
-    try:
-        # Get problem details
-        problems = await get_problems()
-        problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
-        if not problem:
-            raise HTTPException(status_code=404, detail="Problem not found")
-
-        # First, get Mistral's analysis of the code structure
-        analysis_prompt = load_prompt("validation").format(
-            problem_title=problem['title'],
-            problem_description=problem['description'],
-            code=request.code
-        )
-
-        # Get Mistral's classification with extremely lenient criteria
-        headers = {
-            "Authorization": f"Bearer {MISTRAL_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        response = requests.post(
-            MISTRAL_API_URL,
-            headers=headers,
-            json={
-                "model": "mistral-large-latest",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an extremely supportive code validator. Your primary goal is to encourage learning and boost confidence. Always lean towards marking solutions as CORRECT unless they are completely wrong."
-                    },
-                    {"role": "user", "content": analysis_prompt}
-                ]
-            }
-        )
-        
-        analysis = response.json()["choices"][0]["message"]["content"]
-        
-        # Parse the classification
-        classification = "INCORRECT"
-        reason = "Could not determine"
-        
-        for line in analysis.split('\n'):
-            if line.startswith('CLASSIFICATION:'):
-                classification = line.split(':')[1].strip()
-            elif line.startswith('REASON:'):
-                reason = line.split(':')[1].strip()
-
-        # Run basic tests if needed, but with very lenient criteria
-        if classification == "CORRECT":
-            evaluator = CodeEvaluator(problem)
-            test_results = evaluator.run_tests(request.code)
-            
-            # Consider correct if code runs without errors, even if tests don't pass
-            has_no_errors = all(not r.error for r in test_results)
-            some_output = any(r.output for r in test_results)
-            
-            if has_no_errors and some_output:
-                classification = "CORRECT"
-                reason += "\n\nYour code runs successfully! Keep refining it to handle all test cases perfectly!"
-            else:
-                # Still encourage them even if there are errors
-                classification = "INCORRECT"
-                reason = "You're on the right track! Your logic looks good, just need to fix a few small issues. Keep going!"
-
-        return {
-            "classification": classification,
-            "reason": reason,
-            "testResults": [vars(result) for result in test_results] if test_results else None,
-            "nextProblem": problem["id"] + 1 if classification == "CORRECT" else None
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/problems")
 async def get_problems():
@@ -651,17 +576,38 @@ example output (with ".." and "n" being respectively the inputs and function par
 class GenerateTestsRequest(BaseModel):
     code: str
     problem_id: int
+    problem: Optional[dict] = None  # Add problem field to request
+    _internal_call: bool = False  # Flag to indicate if this is an internal call
 
 @app.post("/api/generate-tests")
 async def generate_tests(request: GenerateTestsRequest, problem=None):
     try:
+        # Check if code is empty
+        if not request.code or not request.code.strip():
+            return {
+                "python_code": "print('No code provided. Please write some code before generating tests.')",
+                "javascript_code": "console.log('No code provided. Please write some code before generating tests.');"
+            }
+            
         # Get problem details if not provided
-        if not problem:
+        if not problem and not request.problem:
             problems = await get_problems()
             problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
             
             if not problem:
                 raise HTTPException(status_code=404, detail="Problem not found")
+        elif request.problem:
+            problem = request.problem
+            
+        # Check if the code is relevant to the problem (only if not called internally)
+        if not hasattr(request, '_internal_call') or not request._internal_call:
+            relevance_check = await is_code_relevant_to_problem(request.code, problem)
+            if not relevance_check.get("is_relevant", True) and relevance_check.get("confidence", 0) > 0.7:
+                reason = relevance_check.get('reason', '').replace("'", "\\'")
+                return {
+                    "python_code": f"print(\"The submitted code doesn't appear to be relevant to this problem.\\n{reason}\")",
+                    "javascript_code": f"console.log(\"The submitted code doesn't appear to be relevant to this problem.\\n{reason}\");"
+                }
 
         # Detect language based on code content
         language = "javascript" if "function" in request.code else "python"
@@ -711,15 +657,48 @@ async def generate_tests(request: GenerateTestsRequest, problem=None):
 @app.post("/api/run-tests")
 async def run_tests(request: GenerateTestsRequest):
     try:
-        # Get problem details first
-        problems = await get_problems()
-        problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
-        print(problem)
+        # Check if code is empty
+        if not request.code or not request.code.strip():
+            return {
+                "results": [{
+                    "description": "Test execution",
+                    "passed": False,
+                    "input": "N/A",
+                    "expected_output": "N/A",
+                    "output": "No code provided. Please write some code before running tests."
+                }],
+                "validation": None
+            }
+            
+        # Get problem details first - use the provided problem if available
+        problem = None
+        if hasattr(request, 'problem') and request.problem:
+            problem = request.problem
+            print("Using provided problem:", problem)
+        else:
+            problems = await get_problems()
+            problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+            print("Fetched problem:", problem)
         
         if not problem:
             raise HTTPException(status_code=404, detail="Problem not found")
+            
+        # Check if the code is relevant to the problem
+        relevance_check = await is_code_relevant_to_problem(request.code, problem)
+        if not relevance_check.get("is_relevant", True) and relevance_check.get("confidence", 0) > 0.7:
+            return {
+                "results": [{
+                    "description": "Code Relevance Check",
+                    "passed": False,
+                    "input": "N/A",
+                    "expected_output": "N/A",
+                    "output": f"The submitted code doesn't appear to be relevant to this problem. {relevance_check.get('reason', '')}"
+                }],
+                "validation": None
+            }
 
         # Generate test cases with the problem
+        request._internal_call = True  # Mark this as an internal call
         test_cases = await generate_tests(request, problem)
         print("\nTest Cases:")
         print(test_cases)
@@ -785,11 +764,12 @@ async def run_tests(request: GenerateTestsRequest):
             
             # If all tests passed, run validation
             validation_result = None
-            if all_tests_passed:
+            if all_tests_passed and results and request.code.strip():  # Only validate if there's code and all tests passed
                 try:
                     validation_request = ValidationRequest(
                         code=request.code,
-                        problem_id=request.problem_id
+                        problem_id=request.problem_id,
+                        problem=problem
                     )
                     validation_result = await validate(validation_request)
                 except Exception as e:
@@ -834,6 +814,7 @@ async def run_tests(request: GenerateTestsRequest):
 class ValidationRequest(BaseModel):
     code: str
     problem_id: int
+    problem: Optional[dict] = None  # Add problem field
 
 class ValidationResponse(BaseModel):
     classification: str
@@ -845,12 +826,33 @@ class ValidationResponse(BaseModel):
 @app.post("/api/validate")
 async def validate(request: ValidationRequest):
     try:
+        # Check if code is empty
+        if not request.code or not request.code.strip():
+            return ValidationResponse(
+                classification="INCORRECT",
+                reason="No code provided. Please write some code before validating.",
+                next_problem=None
+            )
+            
         # Get problem details
-        problems = await get_problems()
-        problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+        problem = None
+        if request.problem:
+            problem = request.problem
+        else:
+            problems = await get_problems()
+            problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
         
         if not problem:
             raise HTTPException(status_code=404, detail="Problem not found")
+            
+        # Check if the code is relevant to the problem
+        relevance_check = await is_code_relevant_to_problem(request.code, problem)
+        if not relevance_check.get("is_relevant", True) and relevance_check.get("confidence", 0) > 0.7:
+            return ValidationResponse(
+                classification="INCORRECT",
+                reason=f"The submitted code doesn't appear to be relevant to this problem. {relevance_check.get('reason', '')}",
+                next_problem=None
+            )
 
         # Load validation prompt
         validation_prompt = load_prompt("validation").format(
@@ -990,4 +992,71 @@ class MockResponse:
                 }
             }]
         }).encode()
+
+async def is_code_relevant_to_problem(code: str, problem: dict) -> dict:
+    """
+    Use Mistral to check if the submitted code is relevant to the problem description.
+    Returns a JSON object with classification and reason.
+    """
+    try:
+        # Create a prompt for Mistral to classify the code
+        relevance_prompt = f"""
+You are a code relevance classifier. Determine if the submitted code is relevant to the given problem description.
+
+Problem Title: {problem['title']}
+Problem Description: {problem['description']}
+
+Submitted Code:
+```
+{code}
+```
+
+Analyze the code and determine if it appears to be an attempt to solve the specified problem.
+Consider:
+1. Does the code address the core requirements of the problem?
+2. Does the function name or logic relate to the problem domain?
+3. Are there any clear indicators that this code was written for a different problem?
+
+Respond with a JSON object containing:
+- "is_relevant": boolean (true if the code appears to be an attempt to solve this problem, false otherwise)
+- "confidence": float between 0 and 1
+- "reason": string explaining your classification
+"""
+
+        # Call Mistral API for classification
+        response = requests.post(
+            MISTRAL_API_URL,
+            headers={
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "mistral-large-latest",
+                "temperature": 0.0,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": relevance_prompt
+                    }
+                ],
+                "response_format": {
+                    "type": "json_object"
+                }
+            }
+        )
+
+        if response.status_code != 200:
+            print(f"Error from Mistral API: {response.text}")
+            return {"is_relevant": True, "confidence": 0.5, "reason": "Failed to classify code relevance"}
+
+        # Parse the response
+        content = response.json()["choices"][0]["message"]["content"]
+        result = json.loads(content)
+        print(f"Code relevance classification: {result}")
+        return result
+
+    except Exception as e:
+        print(f"Error in code relevance check: {e}")
+        # Default to allowing the code to run if there's an error
+        return {"is_relevant": True, "confidence": 0.5, "reason": f"Error in classification: {str(e)}"}
 
