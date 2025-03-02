@@ -320,6 +320,21 @@ async def chat(
             "Content-Type": "application/json"
         }
 
+        # Check moderation before proceeding
+        is_safe, category, score = await check_moderation(request.message)
+        if not is_safe:
+            # Generate moderation response if content is flagged
+            moderation_data = await generate_moderation_response(category, score)
+            if moderation_data:
+                response = requests.post(MISTRAL_API_URL, headers=headers, json=moderation_data, stream=True)
+                return StreamingResponse(generate_stream(response), media_type="text/event-stream")
+            else:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Content moderation failed"}
+                )
+
+        # If content is safe, proceed with normal chat flow
         data = format_prompt(request.message, request.code, request.history, problem, request.testResults)
         data["stream"] = True
         data["temperature"] = 0.8
