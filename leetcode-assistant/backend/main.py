@@ -845,15 +845,6 @@ async def validate(request: ValidationRequest):
         if not problem:
             raise HTTPException(status_code=404, detail="Problem not found")
             
-        # Check if the code is relevant to the problem
-        relevance_check = await is_code_relevant_to_problem(request.code, problem)
-        if not relevance_check.get("is_relevant", True) and relevance_check.get("confidence", 0) > 0.7:
-            return ValidationResponse(
-                classification="INCORRECT",
-                reason=f"The submitted code doesn't appear to be relevant to this problem. {relevance_check.get('reason', '')}",
-                next_problem=None
-            )
-
         # Load validation prompt
         validation_prompt = load_prompt("validation").format(
             problem_title=problem['title'],
