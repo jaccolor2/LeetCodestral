@@ -8,14 +8,14 @@ import { useProblem } from './hooks/useProblem';
 import { ProblemDescription } from './components/ProblemDescription';
 import { CodeEditor } from './components/CodeEditor';
 import { ChatWindow } from './components/chat/ChatWindow';
-import { api } from './services/api';
+import { api, setAuthErrorHandler } from './services/api';
 import TestResults from './components/TestResults';
 import { ValidationResponse } from './types/api';
 import { useAuth } from './hooks/useAuth';
 
 export default function Home() {
   // Auth hooks
-  const { isLoggedIn, isLoading } = useAuth();
+  const { isLoggedIn, isLoading, logout } = useAuth();
   const router = useRouter();
 
   // Feature hooks
@@ -28,6 +28,18 @@ export default function Home() {
   const [testResults, setTestResults] = useState<any[]>([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResponse | null>(null);
+  const [problemChangeCounter, setProblemChangeCounter] = useState(0);
+  const [loadingNewProblem, setLoadingNewProblem] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Set up auth error handler
+  useEffect(() => {
+    setAuthErrorHandler(() => {
+      logout();
+      setSessionExpired(true);
+      router.push('/login?expired=true');
+    });
+  }, [logout, router]);
 
   // Auth effect
   useEffect(() => {
@@ -44,6 +56,13 @@ export default function Home() {
       isCorrect: validationResult?.classification === 'CORRECT'
     });
   }, [showSuccessModal, validationResult]);
+
+  // Clear test results when problem changes
+  useEffect(() => {
+    if (currentProblem) {
+      setTestResults([]);
+    }
+  }, [problemChangeCounter]);
 
   if (isLoading) {
     return <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -120,18 +139,39 @@ export default function Home() {
 
   const handleSkip = async () => {
     try {
+      // Hide success modal immediately
+      setShowSuccessModal(false);
+      // Set loading state
+      setLoadingNewProblem(true);
+      
+      // Start a timer to ensure minimum loading time
+      const loadingStartTime = Date.now();
+      const MIN_LOADING_TIME = 1500; // 1.5 seconds minimum loading time
+      
       // Use the fetchNewProblem function from the hook with force=true
       const newProblem = await fetchNewProblem(true);
       if (newProblem) {
         // Clear current state
-        setShowSuccessModal(false);
         setValidationResult(null);
         setTestResults([]);
         setCode(''); // Clear the code editor
         setMessages([]); // Clear chat messages
+        setProblemChangeCounter(prev => prev + 1); // Increment the counter to signal a problem change
+        
+        // Calculate remaining time to show loading animation
+        const elapsedTime = Date.now() - loadingStartTime;
+        const remainingTime = Math.max(0, MIN_LOADING_TIME - elapsedTime);
+        
+        // Keep loading state for the minimum time
+        if (remainingTime > 0) {
+          await new Promise(resolve => setTimeout(resolve, remainingTime));
+        }
       }
     } catch (error) {
       console.error('Error fetching next problem:', error);
+    } finally {
+      // Reset loading state
+      setLoadingNewProblem(false);
     }
   };
 
@@ -149,6 +189,8 @@ export default function Home() {
           problem={currentProblem}
           code={code}
           onRunTests={handleRunTests}
+          problemChangeCounter={problemChangeCounter}
+          isLoading={loadingNewProblem}
         />
       }
       centerPanel={

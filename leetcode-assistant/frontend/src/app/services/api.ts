@@ -2,6 +2,28 @@ import { useAuth } from '../hooks/useAuth';
 
 const API_BASE_URL = 'http://localhost:8000';
 
+// Add a function to handle unauthorized responses
+let authErrorHandler: (() => void) | null = null;
+
+export const setAuthErrorHandler = (handler: () => void) => {
+  authErrorHandler = handler;
+};
+
+const handleUnauthorized = (response: Response) => {
+  if (response.status === 401) {
+    // Clear token from localStorage
+    localStorage.removeItem('access_token');
+    
+    // Call the auth error handler if it exists
+    if (authErrorHandler) {
+      authErrorHandler();
+    }
+    
+    throw new Error('Your session has expired. Please log in again.');
+  }
+  return response;
+};
+
 export interface ChatRequest {
   message: string;
   code: string;
@@ -71,6 +93,9 @@ export const api = {
       body: JSON.stringify(request)
     });
 
+    // Handle unauthorized response
+    handleUnauthorized(response);
+
     if (!response.ok) {
       throw new Error('Failed to send message');
     }
@@ -104,7 +129,13 @@ export const api = {
   },
 
   async getProblems(): Promise<{ problems: Problem[] }> {
-    const response = await fetch(`${API_BASE_URL}/api/problems`);
+    const token = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/api/problems`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    
+    // Handle unauthorized response
+    handleUnauthorized(response);
     
     if (!response.ok) {
       throw new Error('Failed to fetch problems');
@@ -114,7 +145,13 @@ export const api = {
   },
 
   async getProblem(id: number): Promise<Problem> {
-    const response = await fetch(`${API_BASE_URL}/api/problems/${id}`);
+    const token = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/api/problems/${id}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    
+    // Handle unauthorized response
+    handleUnauthorized(response);
     
     if (!response.ok) {
       throw new Error('Failed to fetch problem');
@@ -124,13 +161,18 @@ export const api = {
   },
 
   execute: async (code: string, language: string) => {
+    const token = localStorage.getItem('access_token');
     const response = await fetch('http://localhost:8000/api/execute', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ code, language }),
     });
+
+    // Handle unauthorized response
+    handleUnauthorized(response);
 
     if (!response.ok) {
       throw new Error('Failed to execute code');
@@ -142,14 +184,18 @@ export const api = {
   validate: async (code: string, problemId: number, problem?: any): Promise<ValidationResponse> => {
     try {
       console.log('Sending validation request:', { code, problemId, problem }); // Debug log
-
+      const token = localStorage.getItem('access_token');
       const response = await fetch(`${API_BASE_URL}/api/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ code, problem_id: problemId, problem }),
       });
+
+      // Handle unauthorized response
+      handleUnauthorized(response);
 
       const contentType = response.headers.get('content-type');
       console.log('Response content type:', contentType); // Debug log
@@ -180,19 +226,37 @@ export const api = {
     }
   },
 
-  generateTests: async (code: string, problemId: number) => 
-    fetch(`${API_BASE_URL}/api/generate-tests`, {
+  generateTests: async (code: string, problemId: number) => {
+    const token = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/api/generate-tests`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
       body: JSON.stringify({ code, problem_id: problemId })
-    }).then(res => res.json()),
+    });
+    
+    // Handle unauthorized response
+    handleUnauthorized(response);
+    
+    return response.json();
+  },
     
   runTests: async (code: string, problemId: number, problem?: any) => {
+    const token = localStorage.getItem('access_token');
     const response = await fetch(`${API_BASE_URL}/api/run-tests`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
       body: JSON.stringify({ code, problem_id: problemId, problem })
     });
+    
+    // Handle unauthorized response
+    handleUnauthorized(response);
+    
     const data = await response.json();
     console.log('API Response:', data);  // Debug log
     return data;

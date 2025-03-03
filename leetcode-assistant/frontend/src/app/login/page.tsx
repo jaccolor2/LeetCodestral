@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { MistralLogo } from '../components/MistralLogo';
@@ -12,12 +12,24 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [sessionExpired, setSessionExpired] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setIsLoggedIn } = useAuth();
+
+  // Check for session expiration message in URL
+  useEffect(() => {
+    const expired = searchParams.get('expired');
+    if (expired === 'true') {
+      setSessionExpired(true);
+      setError('Your session has expired. Please log in again.');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSessionExpired(false);
 
     try {
       const response = await api.auth(email, password, isLogin);
@@ -37,6 +49,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center p-4">
       <div className="bg-[#2D2D2D] p-8 rounded-lg w-full max-w-md shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-white/10">
+        {sessionExpired && (
+          <div className="mb-6 p-3 bg-amber-900/50 border border-amber-500/50 rounded-md text-amber-200">
+            <p className="text-sm font-medium">Your session has expired. Please log in again.</p>
+          </div>
+        )}
+        
         <div className="text-center mb-8">
           <div className="flex flex-col items-center gap-4">
             <MistralLogo size={48} />

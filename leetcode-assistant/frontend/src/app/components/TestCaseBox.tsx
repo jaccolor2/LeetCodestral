@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface TestCase {
   input: string;
@@ -12,11 +12,17 @@ interface TestCaseBoxProps {
   problemId: number;
   code: string;
   onRunTests: () => Promise<{ results: TestCase[] }>;
+  problemChangeCounter?: number;
 }
 
-export function TestCaseBox({ problemId, code, onRunTests }: TestCaseBoxProps) {
+export function TestCaseBox({ problemId, code, onRunTests, problemChangeCounter = 0 }: TestCaseBoxProps) {
   const [testCases, setTestCases] = useState<TestCase[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Clear test cases when problem changes
+  useEffect(() => {
+    setTestCases([]);
+  }, [problemChangeCounter]);
 
   const handleRunTests = async () => {
     setLoading(true);

@@ -21,9 +21,16 @@ export function useAuth() {
     };
   }, []);
 
+  // Add logout function
+  const logout = () => {
+    localStorage.removeItem('access_token');
+    setIsLoggedIn(false);
+  };
+
   return {
     isLoggedIn,
     setIsLoggedIn,
-    isLoading
+    isLoading,
+    logout
   };
 } 
