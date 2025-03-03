@@ -1,17 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { MainLayout } from './components/layout/MainLayout';
 import { useChat } from './hooks/useChat';
 import { useCodeExecution } from './hooks/useCodeExecution';
 import { useProblem } from './hooks/useProblem';
 import { ProblemDescription } from './components/ProblemDescription';
-// Dynamically import CodeEditor
-const CodeEditor = dynamic(
-  () => import('./components/CodeEditor').then(mod => ({ default: mod.CodeEditor })), 
-  { ssr: false }
-);
+import { CodeEditor } from './components/CodeEditor';
 import { ChatWindow } from './components/chat/ChatWindow';
 import { api, setAuthErrorHandler } from './services/api';
 import TestResults from './components/TestResults';

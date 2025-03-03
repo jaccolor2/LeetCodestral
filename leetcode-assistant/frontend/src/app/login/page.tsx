@@ -5,32 +5,6 @@ import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { MistralLogo } from '../components/MistralLogo';
 
-// Disable Monaco Editor during login to prevent conflicts
-if (typeof window !== 'undefined') {
-  // Create a temporary blocker for Monaco Editor's initialization
-  window.MonacoEnvironment = {
-    getWorkerUrl: () => {
-      // Return a dummy worker
-      return '';
-    }
-  };
-  
-  // Add a specific style to disable autofill related elements
-  const style = document.createElement('style');
-  style.textContent = `
-    .monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input {
-      display: none !important;
-      visibility: hidden !important;
-      height: 0 !important;
-      width: 0 !important;
-      position: absolute !important;
-      pointer-events: none !important;
-      z-index: -9999 !important;
-    }
-  `;
-  document.head.appendChild(style);
-}
-
 // This is used to disable the static route indicator for this page
 export const dynamic = 'auto';
 export const dynamicParams = true;
@@ -47,7 +21,7 @@ export default function LoginPage() {
 
   // Check for session expiration message in URL
   useEffect(() => {
-    const expired = searchParams?.get('expired');
+    const expired = searchParams.get('expired');
     if (expired === 'true') {
       setSessionExpired(true);
       setError('Your session has expired. Please log in again to continue.');
@@ -93,27 +67,15 @@ export default function LoginPage() {
           </p>
         </div>
         
-        <form onSubmit={handleSubmit} className="space-y-6" autoComplete="new-password">
-          {/* Hidden honeypot fields to confuse autofill mechanisms */}
-          <div style={{display: 'none'}}>
-            <input type="text" name="username" autoComplete="username" />
-            <input type="password" name="password" autoComplete="current-password" />
-          </div>
-          
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-white">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              name="email_login_custom" // Custom name to avoid autofill
               className="mt-1 block w-full rounded-md bg-black border border-gray-800 text-white placeholder-gray-600 focus:border-[#FF4405] focus:ring-[#FF4405] outline-none px-3 py-2"
               required
-              autoComplete="off"
-              data-lpignore="true"
-              autoCapitalize="off"
-              spellCheck="false"
-              autoCorrect="off"
             />
           </div>
           
@@ -123,14 +85,8 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              name="password_login_custom" // Custom name to avoid autofill
               className="mt-1 block w-full rounded-md bg-black border border-gray-800 text-white placeholder-gray-600 focus:border-[#FF4405] focus:ring-[#FF4405] outline-none px-3 py-2"
               required
-              autoComplete="new-password"
-              data-lpignore="true"
-              autoCapitalize="off"
-              spellCheck="false"
-              autoCorrect="off"
             />
           </div>
 

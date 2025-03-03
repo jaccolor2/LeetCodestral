@@ -37,19 +37,6 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="icon" href="/assets/mistral-logo.png" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if (window.location.pathname.includes('/login')) {
-                // Disable Monaco Editor on login page
-                window.MonacoEnvironment = {
-                  getWorkerUrl: function() { return ''; }
-                };
-              }
-            `,
-          }}
-        />
-        <script src="/login-fix.js" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
