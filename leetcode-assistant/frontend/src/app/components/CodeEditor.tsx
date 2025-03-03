@@ -1,6 +1,12 @@
-import { useState } from 'react';
-import Editor from '@monaco-editor/react';
+import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { ValidationResponse } from '../types/api';
+
+// Dynamically import Monaco Editor with no SSR
+const Editor = dynamic(
+  () => import('@monaco-editor/react'),
+  { ssr: false }
+);
 
 interface CodeEditorProps {
   code: string;
@@ -22,6 +28,12 @@ export function CodeEditor({
   const [language, setLanguage] = useState('python');
   const [pythonCode, setPythonCode] = useState('');
   const [javascriptCode, setJavascriptCode] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  // Only load editor after component is mounted on client-side
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleLanguageChange = (newLanguage: string) => {
     if (language === 'python') {
@@ -69,21 +81,27 @@ export function CodeEditor({
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Code editor section */}
           <div className="h-[75%]">
-            <Editor
-              height="100%"
-              language={language}
-              value={code}
-              onChange={(value) => onChange(value || '')}
-              theme="vs-dark"
-              options={{
-                fontSize: 14,
-                fontWeight: 'normal',
-                lineNumbers: 'on',
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-              }}
-            />
+            {!mounted ? (
+              <div className="w-full h-full bg-[#1e1e1e] flex items-center justify-center">
+                <p className="text-gray-400">Loading code editor...</p>
+              </div>
+            ) : (
+              <Editor
+                height="100%"
+                language={language}
+                value={code}
+                onChange={(value) => onChange(value || '')}
+                theme="vs-dark"
+                options={{
+                  fontSize: 14,
+                  fontWeight: 'normal',
+                  lineNumbers: 'on',
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                }}
+              />
+            )}
           </div>
           
           {/* Output Panel */}
