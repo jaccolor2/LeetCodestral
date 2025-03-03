@@ -42,7 +42,7 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 # Add these near the top with other imports
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Changed back to 30 minutes
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

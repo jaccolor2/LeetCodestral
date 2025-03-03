@@ -5,7 +5,9 @@ import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { MistralLogo } from '../components/MistralLogo';
 
-export const dynamic = 'force-dynamic';
+// This is used to disable the static route indicator for this page
+export const dynamic = 'auto';
+export const dynamicParams = true;
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -22,7 +24,7 @@ export default function LoginPage() {
     const expired = searchParams.get('expired');
     if (expired === 'true') {
       setSessionExpired(true);
-      setError('Your session has expired. Please log in again.');
+      setError('Your session has expired. Please log in again to continue.');
     }
   }, [searchParams]);
 

@@ -17,11 +17,11 @@ const handleUnauthorized = (response: Response) => {
     // Call the auth error handler if it exists
     if (authErrorHandler) {
       authErrorHandler();
+      // Return false to indicate unauthorized
+      return false;
     }
-    
-    throw new Error('Your session has expired. Please log in again.');
   }
-  return response;
+  return true;
 };
 
 export interface ChatRequest {
@@ -94,7 +94,9 @@ export const api = {
     });
 
     // Handle unauthorized response
-    handleUnauthorized(response);
+    if (!handleUnauthorized(response)) {
+      return; // Exit early if unauthorized
+    }
 
     if (!response.ok) {
       throw new Error('Failed to send message');
@@ -135,7 +137,9 @@ export const api = {
     });
     
     // Handle unauthorized response
-    handleUnauthorized(response);
+    if (!handleUnauthorized(response)) {
+      return { problems: [] }; // Return empty array if unauthorized
+    }
     
     if (!response.ok) {
       throw new Error('Failed to fetch problems');
@@ -151,7 +155,9 @@ export const api = {
     });
     
     // Handle unauthorized response
-    handleUnauthorized(response);
+    if (!handleUnauthorized(response)) {
+      throw new Error('Session expired'); // This will be caught by the caller
+    }
     
     if (!response.ok) {
       throw new Error('Failed to fetch problem');
@@ -172,7 +178,9 @@ export const api = {
     });
 
     // Handle unauthorized response
-    handleUnauthorized(response);
+    if (!handleUnauthorized(response)) {
+      return { output: 'Session expired. Please log in again.' };
+    }
 
     if (!response.ok) {
       throw new Error('Failed to execute code');
@@ -195,7 +203,12 @@ export const api = {
       });
 
       // Handle unauthorized response
-      handleUnauthorized(response);
+      if (!handleUnauthorized(response)) {
+        return {
+          classification: 'INCORRECT',
+          reason: 'Session expired. Please log in again.'
+        };
+      }
 
       const contentType = response.headers.get('content-type');
       console.log('Response content type:', contentType); // Debug log
@@ -238,7 +251,9 @@ export const api = {
     });
     
     // Handle unauthorized response
-    handleUnauthorized(response);
+    if (!handleUnauthorized(response)) {
+      return { tests: [] }; // Return empty tests if unauthorized
+    }
     
     return response.json();
   },
@@ -255,7 +270,9 @@ export const api = {
     });
     
     // Handle unauthorized response
-    handleUnauthorized(response);
+    if (!handleUnauthorized(response)) {
+      return { results: [] }; // Return empty results if unauthorized
+    }
     
     const data = await response.json();
     console.log('API Response:', data);  // Debug log
