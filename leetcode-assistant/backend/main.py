@@ -71,7 +71,7 @@ class ChatResponse(BaseModel):
 
 class CodeExecutionRequest(BaseModel):
     code: str
-    language: str  # Add language field
+    language: str
 
 class CodeEvaluator:
     def __init__(self, problem):
@@ -366,24 +366,76 @@ async def chat(
             }
         )
 
+def detect_language(code: str) -> str:
+    """Helper function to detect the programming language of the code."""
+    # JavaScript indicators
+    js_indicators = [
+        "function",  # Function declaration
+        "let ",      # Variable declaration with let
+        "const ",    # Variable declaration with const
+        "var ",      # Variable declaration with var
+        "=>",        # Arrow functions
+        "console.log", # Console logging
+        "{}"         # Object literal notation
+    ]
+    
+    # Python indicators
+    py_indicators = [
+        "def ",     # Function definition
+        "print(",   # Print function
+        ":"        # Python block delimiter
+    ]
+    
+    # Count occurrences of each language's indicators
+    js_count = sum(1 for indicator in js_indicators if indicator in code)
+    py_count = sum(1 for indicator in py_indicators if indicator in code)
+    
+    # If we have more JavaScript indicators, or if we have any JavaScript indicators and no Python ones
+    if js_count > py_count or (js_count > 0 and py_count == 0):
+        return "javascript"
+    return "python"
+
 @app.post("/api/execute")
 async def execute_code(request: CodeExecutionRequest):
     try:
         # Create a temporary file with the appropriate extension
-        suffix = '.js' if request.language == 'javascript' else '.py'
-        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as f:
+        # Improved language detection
+        language = detect_language(request.code)
+        suffix = '.js' if language == 'javascript' else '.py'
+        
+        print(f"\n=== EXECUTING {language.upper()} CODE ===")
+        print(f"Code to execute:\n{request.code}")
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False, encoding='utf-8') as f:
             f.write(request.code)
             temp_file_path = f.name
 
         try:
             # Run the code with a timeout
-            if request.language == 'javascript':
-                process = subprocess.run(
-                    ['node', temp_file_path],
-                    capture_output=True,
-                    text=True,
-                    timeout=5  # 5 second timeout
-                )
+            if language == 'javascript':
+                # First check if Node.js is available
+                try:
+                    version_process = subprocess.run(
+                        ['node', '--version'],
+                        capture_output=True,
+                        text=True,
+                        timeout=2
+                    )
+                    if version_process.returncode != 0:
+                        raise Exception("Node.js is not available")
+                    
+                    process = subprocess.run(
+                        ['node', temp_file_path],
+                        capture_output=True,
+                        text=True,
+                        timeout=5  # 5 second timeout
+                    )
+                except FileNotFoundError:
+                    return {
+                        "stdout": "",
+                        "stderr": "Node.js is not installed or not in PATH. Please install Node.js to run JavaScript code.",
+                        "error": "Node.js not found"
+                    }
             else:  # Default to Python
                 process = subprocess.run(
                     ['python', temp_file_path],
@@ -391,6 +443,18 @@ async def execute_code(request: CodeExecutionRequest):
                     text=True,
                     timeout=5  # 5 second timeout
                 )
+
+            print("\n=== EXECUTION OUTPUT ===")
+            print(f"STDOUT:\n{process.stdout}")
+            print(f"STDERR:\n{process.stderr}")
+            
+            # Check for syntax errors in the output
+            if "SyntaxError" in process.stderr:
+                return {
+                    "stdout": "",
+                    "stderr": process.stderr,
+                    "error": f"Syntax error in {language} code"
+                }
 
             return {
                 "stdout": process.stdout,
@@ -402,13 +466,13 @@ async def execute_code(request: CodeExecutionRequest):
             return {
                 "stdout": "",
                 "stderr": "",
-                "error": "Code execution timed out after 5 seconds"
+                "error": f"{language} code execution timed out after 5 seconds"
             }
         except Exception as e:
             return {
                 "stdout": "",
                 "stderr": str(e),
-                "error": "Error executing code"
+                "error": f"Error executing {language} code"
             }
         finally:
             # Clean up the temporary file
@@ -578,6 +642,7 @@ class GenerateTestsRequest(BaseModel):
     problem_id: int
     problem: Optional[dict] = None  # Add problem field to request
     _internal_call: bool = False  # Flag to indicate if this is an internal call
+    language: Optional[str] = None  # Add language field
 
 @app.post("/api/generate-tests")
 async def generate_tests(request: GenerateTestsRequest, problem=None):
@@ -610,7 +675,8 @@ async def generate_tests(request: GenerateTestsRequest, problem=None):
                 }
 
         # Detect language based on code content
-        language = "javascript" if "function" in request.code else "python"
+        language = detect_language(request.code)
+        print(f"\nDetected language: {language}")
         
         # Format the test generation prompt with language
         test_prompt = load_prompt("test_generation").format(
@@ -633,7 +699,7 @@ async def generate_tests(request: GenerateTestsRequest, problem=None):
                 "messages": [
                     {
                         "role": "user",
-                        "content": "You are a Python and JavaScript test case generator. Generate test cases with VALID SYNTAX for the specified language. Also you should give the code in a json object with the following format: { \"python_code\": pythoncode } or { \"javascript_code\": jscode }"
+                        "content": f"You are a {language} test case generator. Generate test cases with VALID {language.upper()} SYNTAX. Return ONLY a JSON object with the key '{language}_code' containing the test code."
                     },
                     {
                         "role": "user",
@@ -648,7 +714,23 @@ async def generate_tests(request: GenerateTestsRequest, problem=None):
 
         print("response:>>>\n", response.json(), "\n<<<end")
         content = response.json()["choices"][0]["message"]["content"]
-        return json.loads(content)
+        test_cases = json.loads(content)
+        
+        # Ensure we have the correct language test cases
+        if language == "python" and "python_code" not in test_cases:
+            print("Error: Missing Python test cases")
+            return {
+                "python_code": "print('Failed to generate Python test cases')",
+                "javascript_code": ""
+            }
+        elif language == "javascript" and "javascript_code" not in test_cases:
+            print("Error: Missing JavaScript test cases")
+            return {
+                "python_code": "",
+                "javascript_code": "console.log('Failed to generate JavaScript test cases');"
+            }
+            
+        return test_cases
 
     except Exception as e:
         print(f"Error: {e}")
@@ -698,87 +780,134 @@ async def run_tests(request: GenerateTestsRequest):
             }
 
         # Generate test cases with the problem
-        request._internal_call = True  # Mark this as an internal call
+        request._internal_call = True
+        # Detect language before generating tests
+        language = detect_language(request.code)
+        request.language = language  # Add language to request for test generation
         test_cases = await generate_tests(request, problem)
-        print("\nTest Cases:")
+        print("\n=== GENERATED TEST CASES ===")
         print(test_cases)
-
+        
         # Create a temporary file with the appropriate extension and content
-        language = "javascript" if "function" in request.code else "python"
         suffix = '.js' if language == 'javascript' else '.py'
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False, encoding='utf-8') as f:
+            print("\n=== WRITING TEST FILE ===")
+            print(f"Language: {language}")
+            print(f"Solution code:\n{request.code}")
             # Write the solution code first
             f.write(request.code + "\n\n")
             
-            # Write the test code
-            if language == "javascript":
-                f.write(test_cases.get("javascript_code", ""))
+            # Write the test code based on language
+            if language == "python":
+                test_code = test_cases.get("python_code", "")
             else:
-                f.write(test_cases.get("python_code", ""))
-            
+                test_code = test_cases.get("javascript_code", "")
+                
+            if not test_code:
+                return {
+                    "results": [{
+                        "description": "Test Generation",
+                        "passed": False,
+                        "input": "N/A",
+                        "expected_output": "N/A",
+                        "output": f"Failed to generate test cases for {language}"
+                    }],
+                    "validation": None
+                }
+                
+            print(f"\nTest code:\n{test_code}")
+            f.write(test_code)
             temp_file_path = f.name
+            print(f"\nTest file path: {temp_file_path}")
 
         try:
-            # Execute the code with a timeout
-            if language == "javascript":
-                process = subprocess.run(
-                    ['node', temp_file_path],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-            else:
-                process = subprocess.run(
-                    ['python', temp_file_path],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+            # Read the complete test file
+            with open(temp_file_path, 'r', encoding='utf-8') as f:
+                complete_code = f.read()
 
-            # Parse the output to get test results
-            output_lines = process.stdout.strip().split('\n')
+            # Execute using the execute_code function
+            execution_request = CodeExecutionRequest(code=complete_code, language=language)
+            execution_result = await execute_code(execution_request)
+
+            print("\n=== TEST EXECUTION OUTPUT ===")
+            print(f"STDOUT:\n{execution_result['stdout']}")
+            print(f"STDERR:\n{execution_result['stderr']}")
+
+            if execution_result.get("error"):
+                return {
+                    "results": [{
+                        "description": "Test execution",
+                        "passed": False,
+                        "input": "N/A",
+                        "expected_output": "N/A",
+                        "output": execution_result["error"]
+                    }],
+                    "validation": None
+                }
+
+            # Parse the output lines
+            output_lines = execution_result["stdout"].strip().split('\n')
+            print(f"\nNumber of output lines: {len(output_lines)}")
             results = []
             current_test = {}
             
             for line in output_lines:
+                print(f"Processing line: {line}")
                 if line.startswith("Test case"):
                     if current_test:
+                        print(f"Adding test result: {current_test}")
                         results.append(current_test)
                     current_test = {
                         "description": line,
                         "passed": "Passed" in line
                     }
+                    print(f"Started new test case: {current_test}")
                 elif "Input:" in line:
                     current_test["input"] = line.split("Input:")[1].strip()
+                    print(f"Added input: {current_test['input']}")
                 elif "Expected:" in line:
                     current_test["expected_output"] = line.split("Expected:")[1].strip()
+                    print(f"Added expected: {current_test['expected_output']}")
                 elif "Got:" in line:
                     current_test["output"] = line.split("Got:")[1].strip()
+                    print(f"Added output: {current_test['output']}")
             
             if current_test:
+                print(f"Adding final test result: {current_test}")
                 results.append(current_test)
+
+            print(f"\nFinal test results: {results}")
 
             # After getting the test results, check if all tests passed
             all_tests_passed = all(result.get("passed", False) for result in results)
+            has_results = bool(results)
+            has_code = bool(request.code.strip())
+            print(f"\nValidation check: all_tests_passed={all_tests_passed}, has_results={has_results}, has_code={has_code}")
             
             # If all tests passed, run validation
             validation_result = None
-            if all_tests_passed and results and request.code.strip():  # Only validate if there's code and all tests passed
+            if all_tests_passed and has_results and has_code:
                 try:
+                    print("\nAttempting validation...")
                     validation_request = ValidationRequest(
                         code=request.code,
                         problem_id=request.problem_id,
                         problem=problem
                     )
+                    print(f"Validation request created: {validation_request}")
                     validation_result = await validate(validation_request)
+                    print(f"Validation result: {validation_result}")
                 except Exception as e:
                     print(f"Validation error: {e}")
                     pass
 
             return {
                 "results": results,
-                "validation": validation_result.dict() if validation_result else None
+                "validation": {
+                    "message": validation_result.message if validation_result else None,
+                    "nextProblem": validation_result.nextProblem if validation_result else None
+                } if validation_result else None
             }
 
         except subprocess.TimeoutExpired:
@@ -788,8 +917,9 @@ async def run_tests(request: GenerateTestsRequest):
                     "passed": False,
                     "input": "N/A",
                     "expected_output": "N/A",
-                    "output": "Code execution timed out after 5 seconds"
-                }]
+                    "output": f"{language} code execution timed out after 5 seconds"
+                }],
+                "validation": None
             }
         except Exception as e:
             return {
@@ -799,7 +929,8 @@ async def run_tests(request: GenerateTestsRequest):
                     "input": "N/A",
                     "expected_output": "N/A",
                     "output": str(e)
-                }]
+                }],
+                "validation": None
             }
         finally:
             # Clean up the temporary file
@@ -817,40 +948,64 @@ class ValidationRequest(BaseModel):
     problem: Optional[dict] = None  # Add problem field
 
 class ValidationResponse(BaseModel):
-    classification: str
-    reason: str
-    test_results: Optional[List[dict]] = None
-    next_problem: Optional[int] = None
+    message: str
+    nextProblem: Optional[int] = None
 
 # Add this new endpoint
 @app.post("/api/validate")
 async def validate(request: ValidationRequest):
     try:
+        print("\n=== VALIDATION ENDPOINT ===")
+        print(f"Request: {request}")
+        
         # Check if code is empty
         if not request.code or not request.code.strip():
+            print("No code provided")
             return ValidationResponse(
-                classification="INCORRECT",
-                reason="No code provided. Please write some code before validating.",
-                next_problem=None
+                message="No code provided. Please write some code before validating.",
+                nextProblem=None
             )
             
         # Get problem details
         problem = None
         if request.problem:
             problem = request.problem
+            print("Using provided problem")
         else:
+            print("Fetching problem from problems endpoint")
             problems = await get_problems()
             problem = next((p for p in problems["problems"] if p["id"] == request.problem_id), None)
+        
+        print(f"Problem found: {bool(problem)}")
         
         if not problem:
             raise HTTPException(status_code=404, detail="Problem not found")
             
-        # Load validation prompt
-        validation_prompt = load_prompt("validation").format(
-            problem_title=problem['title'],
-            problem_description=problem['description'],
-            code=request.code
-        )
+        # Detect language
+        language = detect_language(request.code)
+        print(f"Detected language: {language}")
+            
+        # Load validation prompt focused on generating a success message
+        validation_prompt = f"""
+You are providing feedback for a coding solution. The user has successfully completed their solution and passed all test cases.
+Generate an encouraging and informative success message.
+
+Problem Title: {problem['title']}
+Problem Description: {problem['description']}
+
+Submitted Code:
+```
+{request.code}
+```
+
+Guidelines for the success message:
+1. Be encouraging and positive
+2. Mention one or two technical strengths of their solution (e.g., good time complexity, clean code, etc.)
+3. Keep it concise (2-3 sentences)
+4. Don't use markdown formatting or backticks
+
+Respond with ONLY one line containing your success message.
+"""
 
         # Call Mistral API for validation
         response = requests.post(
@@ -861,7 +1016,7 @@ async def validate(request: ValidationRequest):
             },
             json={
                 "model": "mistral-large-latest",
-                "temperature": 0.0,
+                "temperature": 0.7,  # Slightly higher temperature for more varied messages
                 "messages": [
                     {
                         "role": "user",
@@ -872,33 +1027,19 @@ async def validate(request: ValidationRequest):
         )
 
         if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Failed to validate code")
+            raise HTTPException(status_code=500, detail="Failed to generate success message")
 
         # Parse the response
-        content = response.json()["choices"][0]["message"]["content"]
-        
-        # Extract classification and reason with explicit mapping
-        classification = "INCORRECT"
-        reason = "Could not validate the solution"
-        
-        for line in content.split('\n'):
-            if line.startswith("CLASSIFICATION:"):
-                raw_classification = line.split(':')[1].strip().upper()
-                # Ensure classification is exactly 'CORRECT' or 'INCORRECT'
-                classification = 'CORRECT' if raw_classification == 'CORRECT' else 'INCORRECT'
-            elif line.startswith("REASON:"):
-                reason = line.split(':')[1].strip()
-
-        print(f"Validation result: classification={classification}, reason={reason}")  # Debug log
+        content = response.json()["choices"][0]["message"]["content"].strip()
+        print(f"\nGenerated success message:\n{content}")
 
         # Prepare the response
         validation_response = ValidationResponse(
-            classification=classification,
-            reason=reason,
-            next_problem=problem['id'] + 1 if classification == 'CORRECT' else None
+            message=content,
+            nextProblem=problem['id'] + 1  # Always provide next problem since tests passed
         )
 
-        print(f"Sending validation response: {validation_response.dict()}")  # Debug log
+        print(f"\nSending validation response: {validation_response.dict()}")
         return validation_response
 
     except Exception as e:

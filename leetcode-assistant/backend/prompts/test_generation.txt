@@ -15,10 +15,78 @@ Requirements:
 
 example output for Python:
 {{
-  "python_code": "def test_{function_name}():\\n    try:\\n        # Test case n: Description\\n        result = {function_name}([.., .., .., ..], ..)\\n        expected = [.., ..]\\n        print(f\\"Test case n: {{' Passed' if result == expected else ' Failed'}}\\")\n        print(f\\"  Input: nums=[.., .., .., ..], target=..\\")\n        print(f\\"  Expected: {{expected}}\\")\n        print(f\\"  Got: {{result}}\\")\n        assert result == expected\\n\\n        print(\\"\\\\nAll tests passed!\\")\n    except AssertionError as e:\\n        print(f\\"\\\\nTest failed: {{e}}\\")"
+  "python_code": """def test_{function_name}():
+    try:
+        # Test case 1: Normal case
+        result = {function_name}(2, 3)
+        expected = 5
+        print(f"Test case 1: {{' Passed' if result == expected else ' Failed'}}")
+        print(f"  Input: num1=2, num2=3")
+        print(f"  Expected: {{expected}}")
+        print(f"  Got: {{result}}")
+        assert result == expected
+
+        # Test case 2: Edge case with zero
+        result = {function_name}(0, 0)
+        expected = 0
+        print(f"Test case 2: {{' Passed' if result == expected else ' Failed'}}")
+        print(f"  Input: num1=0, num2=0")
+        print(f"  Expected: {{expected}}")
+        print(f"  Got: {{result}}")
+        assert result == expected
+
+        # Test case 3: Edge case with negative numbers
+        result = {function_name}(-5, -7)
+        expected = -12
+        print(f"Test case 3: {{' Passed' if result == expected else ' Failed'}}")
+        print(f"  Input: num1=-5, num2=-7")
+        print(f"  Expected: {{expected}}")
+        print(f"  Got: {{result}}")
+        assert result == expected
+
+        print("\\nAll tests passed!")
+    except AssertionError as e:
+        print(f"\\nTest failed: {{e}}")
+
+test_{function_name}()"""
 }}
 
 example output for JavaScript:
 {{
-  "javascript_code": "function test_{function_name}() {{\\n    try {{\\n        // Test case n: Description\\n        const result = {function_name}([.., .., .., ..], ..);\\n        const expected = [.., ..];\\n        console.log(`Test case n: ${{JSON.stringify(result) === JSON.stringify(expected) ? ' Passed' : ' Failed'}}`);\\n        console.log(`  Input: nums=[.., .., .., ..], target=..`);\\n        console.log(`  Expected: ${{JSON.stringify(expected)}}`);\\n        console.log(`  Got: ${{JSON.stringify(result)}}`);\\n        if (JSON.stringify(result) !== JSON.stringify(expected)) throw new Error('Test failed');\\n    }} catch (e) {{\\n        console.log(`\\\\nTest failed: ${{e.message}}`);\\n    }}\\n}}\\n\\ntest_{function_name}();"
+  "javascript_code": """function test_{function_name}() {{
+    try {{
+        // Test case 1: Normal case
+        const result1 = {function_name}(2, 3);
+        const expected1 = 5;
+        console.log(`Test case 1: ${{result1 === expected1 ? ' Passed' : ' Failed'}}`);
+        console.log(`  Input: num1=2, num2=3`);
+        console.log(`  Expected: ${{expected1}}`);
+        console.log(`  Got: ${{result1}}`);
+        if (result1 !== expected1) throw new Error('Test failed');
+
+        // Test case 2: Edge case with zero
+        const result2 = {function_name}(0, 0);
+        const expected2 = 0;
+        console.log(`Test case 2: ${{result2 === expected2 ? ' Passed' : ' Failed'}}`);
+        console.log(`  Input: num1=0, num2=0`);
+        console.log(`  Expected: ${{expected2}}`);
+        console.log(`  Got: ${{result2}}`);
+        if (result2 !== expected2) throw new Error('Test failed');
+
+        // Test case 3: Edge case with negative numbers
+        const result3 = {function_name}(-5, -7);
+        const expected3 = -12;
+        console.log(`Test case 3: ${{result3 === expected3 ? ' Passed' : ' Failed'}}`);
+        console.log(`  Input: num1=-5, num2=-7`);
+        console.log(`  Expected: ${{expected3}}`);
+        console.log(`  Got: ${{result3}}`);
+        if (result3 !== expected3) throw new Error('Test failed');
+
+        console.log(`\\nAll tests passed!`);
+    }} catch (e) {{
+        console.log(`\\nTest failed: ${{e.message}}`);
+    }}
+}}
+
+test_{function_name}();"""
 }}

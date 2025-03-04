@@ -30,8 +30,31 @@ export function ProblemDescription({
   problemChangeCounter = 0,
   isLoading = false 
 }: ProblemDescriptionProps) {
+  const LoadingOverlay = () => (
+    <div className="absolute inset-0 z-10 overflow-hidden bg-gray-900/90 backdrop-blur-sm">
+      {/* First wave - faster */}
+      <div className="absolute -inset-full w-[400%] h-[200%] animate-wave-fast bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      
+      {/* Second wave - slower, delayed */}
+      <div className="absolute -inset-full w-[400%] h-[200%] animate-wave-slow bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+      
+      {/* Third wave - medium speed */}
+      <div className="absolute -inset-full w-[400%] h-[200%] animate-wave-medium bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      
+      {/* Loading text */}
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+        <div className="text-white text-xl font-medium mb-2">LeetCodestral is generating a new problem...</div>
+        <div className="inline-block w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+      </div>
+    </div>
+  );
+
   if (!problem) {
-    return <div className="text-gray-200">Loading problem...</div>;
+    return (
+      <div className="text-gray-200 h-full relative">
+        <LoadingOverlay />
+      </div>
+    );
   }
 
   const difficultyColor = {
@@ -99,24 +122,7 @@ export function ProblemDescription({
       </div>
 
       {/* Loading overlay with multiple wave effects */}
-      {isLoading && (
-        <div className="absolute inset-0 z-10 overflow-hidden bg-gray-900/90 backdrop-blur-sm">
-          {/* First wave - faster */}
-          <div className="absolute -inset-full w-[400%] h-[200%] animate-wave-fast bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-          
-          {/* Second wave - slower, delayed */}
-          <div className="absolute -inset-full w-[400%] h-[200%] animate-wave-slow bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-          
-          {/* Third wave - medium speed */}
-          <div className="absolute -inset-full w-[400%] h-[200%] animate-wave-medium bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-          
-          {/* Loading text */}
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-            <div className="text-white text-xl font-medium mb-2">Loading new problem...</div>
-            <div className="inline-block w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
-          </div>
-        </div>
-      )}
+      {isLoading && <LoadingOverlay />}
     </div>
   );
 } 

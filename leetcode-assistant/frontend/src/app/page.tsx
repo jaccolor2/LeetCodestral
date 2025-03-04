@@ -52,8 +52,7 @@ export default function Home() {
   useEffect(() => {
     console.log('State changed:', {
       showSuccessModal,
-      validationResult,
-      isCorrect: validationResult?.classification === 'CORRECT'
+      validationResult
     });
   }, [showSuccessModal, validationResult]);
 
@@ -119,13 +118,7 @@ export default function Home() {
       if (response.validation) {
         setValidationResult(response.validation);
         console.log('Setting validation result:', response.validation);
-        
-        if (response.validation.classification === 'CORRECT') {
-          console.log('Solution is correct, showing modal');
-          setShowSuccessModal(true);
-        } else {
-          console.log('Solution is not correct:', response.validation.classification);
-        }
+        setShowSuccessModal(true);
       } else {
         console.log('No validation received in response');
       }
@@ -211,15 +204,15 @@ export default function Home() {
         />
       }
     >
-      {showSuccessModal && validationResult && validationResult.classification === 'CORRECT' && (
+      {showSuccessModal && validationResult && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center">
           <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl border-2 border-green-400">
             <div className="text-center">
               <div className="text-3xl text-green-400 font-bold mb-4">
-                🎉 Solution Correct! 🎉
+                🎉 Great Work! 🎉
               </div>
               <div className="text-white text-lg mb-6">
-                {validationResult.reason}
+                {validationResult.message}
               </div>
               <div className="flex gap-4">
                 <button
