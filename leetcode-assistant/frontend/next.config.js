@@ -5,7 +5,8 @@ const nextConfig = {
     buildActivityPosition: "bottom-right"
   },
   experimental: {
-    disableStaticRouteIndicator: true
+    disableStaticRouteIndicator: true,
+    staticRouteIndicator: false
   }
 };
 

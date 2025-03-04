@@ -5,10 +5,6 @@ import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { MistralLogo } from '../components/MistralLogo';
 
-// This is used to disable the static route indicator for this page
-export const dynamic = 'auto';
-export const dynamicParams = true;
-
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
